@@ -1,0 +1,17 @@
+{
+    "name": "CrownlessWarband.Presentation",
+    "rootNamespace": "CrownlessWarband.Presentation",
+    "references": [
+        "GUID:b793888544b420441872768d38652add",
+        "GUID:faa95fe210559cd44a0a4ba68919b7f3"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

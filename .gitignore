@@ -39,8 +39,12 @@
 # Jetbrains Rider personal-layer settings
 *.DotSettings.user
 
-# Visual Studio cache directory
+# Visual Studio / VS Code / DotRush / Antigravity cache directories
 .vs/
+.vscode/
+.idea/
+.dotrush/
+.antigravity/
 
 # Gradle cache directory
 .gradle/
@@ -105,3 +109,31 @@ InitTestScene*.unity*
 
 # Auto-generated scenes by play mode tests
 /[Aa]ssets/[Ii]nit[Tt]est[Ss]cene*.unity*
+
+# ==============================================================================
+# THE CROWNLESS WARBAND - ANTIGRAVITY AI & SIMULATION CUSTOM IGNORES
+# ==============================================================================
+
+# 1. Bỏ qua các file nháp giao việc & review tạm thời với AI Agent
+/CURRENT_TASK.md
+/REVIEW_PENDING*.md
+/review_patch.txt
+*.bak
+
+# 2. Bỏ qua cache/history cục bộ của Antigravity Agent nhưng GIỮ LẠI rules & workflows
+/.agents/*
+!/.agents/rules/
+!/.agents/rules/**
+!/.agents/workflows/
+!/.agents/workflows/**
+!/README.md
+
+# 3. Bỏ qua dữ liệu xuất ra khi chạy giả lập AI (Headless Simulation) & Save/Load test
+/SimulationLogs/
+/BattleReplays/
+*.save.json
+
+# 4. File rác hệ điều hành (Windows / macOS)
+.DS_Store
+Thumbs.db
+Desktop.ini

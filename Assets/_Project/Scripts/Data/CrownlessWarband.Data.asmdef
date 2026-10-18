@@ -1,0 +1,16 @@
+{
+    "name": "CrownlessWarband.Data",
+    "rootNamespace": "CrownlessWarband.Data",
+    "references": [
+        "GUID:b793888544b420441872768d38652add"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
