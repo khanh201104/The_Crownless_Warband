@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using CrownlessWarband.Core.AI;
 using CrownlessWarband.Core.Events;
 
 namespace CrownlessWarband.Core.Battle
@@ -22,6 +23,7 @@ namespace CrownlessWarband.Core.Battle
         public List<UnitState> Units = new List<UnitState>();
         public List<string> CombatLog = new List<string>();
         public Queue<CombatEvent> EventQueue = new Queue<CombatEvent>();
+        public Dictionary<string, UnitAIDecisionLog> LastUnitDecisions = new Dictionary<string, UnitAIDecisionLog>();
 
         // --- Các hàm truy vấn nhanh cho AI Observation (GDD Mục 15) ---
 
@@ -43,10 +45,19 @@ namespace CrownlessWarband.Core.Battle
 
         /// <summary>
         /// Kiểm tra xem hàng Front của một phe còn ai sống sót để che chắn cho hàng sau không (GDD Mục 9)
+        /// Không dùng LINQ để tránh GC Allocation trong vòng lặp lọc mục tiêu
         /// </summary>
         public bool HasAliveFrontline(TeamSide team)
         {
-            return Units.Any(u => u.Team == team && u.IsAlive && u.Position.Row == RowType.Front);
+            for (int i = 0; i < Units.Count; i++)
+            {
+                var u = Units[i];
+                if (u != null && u.Team == team && u.IsAlive && u.Position.Row == RowType.Front)
+                {
+                    return true;
+                }
+            }
+            return false;
         }
 
         /// <summary>
@@ -54,11 +65,24 @@ namespace CrownlessWarband.Core.Battle
         /// </summary>
         public List<UnitState> GetTurnOrderQueue()
         {
-            return Units
-                .Where(u => u.IsAlive)
-                .OrderByDescending(u => u.Speed)
-                .ThenBy(u => u.Team) // Ưu tiên Player nếu đồng tốc
-                .ToList();
+            var queue = new List<UnitState>();
+            for (int i = 0; i < Units.Count; i++)
+            {
+                var u = Units[i];
+                if (u != null && u.IsAlive)
+                {
+                    queue.Add(u);
+                }
+            }
+
+            queue.Sort((a, b) =>
+            {
+                int speedCmp = b.Speed.CompareTo(a.Speed);
+                if (speedCmp != 0) return speedCmp;
+                return a.Team.CompareTo(b.Team); // Ưu tiên Player nếu đồng tốc
+            });
+
+            return queue;
         }
 
         public void AppendLog(string message)

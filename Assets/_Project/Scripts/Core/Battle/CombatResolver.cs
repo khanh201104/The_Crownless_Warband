@@ -81,6 +81,11 @@ namespace CrownlessWarband.Core.Battle
             if (state == null || attacker == null || skill == null || target == null || !target.IsAlive)
                 return false;
 
+            if (skill.TargetType == SkillTargetType.Self)
+            {
+                return target.InstanceId == attacker.InstanceId;
+            }
+
             // Chiêu hỗ trợ/buff đồng minh
             if (skill.TargetType == SkillTargetType.SingleAlly || skill.TargetType == SkillTargetType.LowestHpAlly)
             {
@@ -227,6 +232,8 @@ namespace CrownlessWarband.Core.Battle
 
         private static void ResolveHeal(BattleState state, UnitState attacker, SkillInstance skill, UnitState target, string aiDebugSummary)
         {
+            if (target == null || !target.IsAlive) return;
+
             int healAmount = Math.Max(1, (int)(attacker.Attack * skill.PowerMultiplier));
             int oldHP = target.CurrentHP;
             target.CurrentHP = Math.Min(target.MaxHP, target.CurrentHP + healAmount);
@@ -247,6 +254,8 @@ namespace CrownlessWarband.Core.Battle
 
         private static void ResolveShield(BattleState state, UnitState attacker, SkillInstance skill, UnitState target, string aiDebugSummary)
         {
+            if (target == null || !target.IsAlive) return;
+
             int shieldAmount = Math.Max(1, (int)(attacker.Attack * skill.PowerMultiplier));
             target.Shield += shieldAmount;
 
@@ -265,6 +274,8 @@ namespace CrownlessWarband.Core.Battle
 
         private static void ResolveStun(BattleState state, UnitState attacker, SkillInstance skill, UnitState target, string aiDebugSummary)
         {
+            if (target == null || !target.IsAlive) return;
+
             target.IsStunned = true;
 
             state.EnqueueEvent(new CombatEvent
@@ -281,6 +292,8 @@ namespace CrownlessWarband.Core.Battle
 
         private static void ResolveMark(BattleState state, UnitState attacker, SkillInstance skill, UnitState target, string aiDebugSummary)
         {
+            if (target == null || !target.IsAlive) return;
+
             target.IsMarked = true;
 
             state.EnqueueEvent(new CombatEvent
@@ -297,6 +310,8 @@ namespace CrownlessWarband.Core.Battle
 
         private static void ResolveProtectAlly(BattleState state, UnitState attacker, SkillInstance skill, UnitState target, string aiDebugSummary)
         {
+            if (target == null || !target.IsAlive) return;
+
             target.ProtectingAllyId = attacker.InstanceId;
 
             state.EnqueueEvent(new CombatEvent
