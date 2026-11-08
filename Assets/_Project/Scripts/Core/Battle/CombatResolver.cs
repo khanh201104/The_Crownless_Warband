@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using CrownlessWarband.Core.Events;
+using CrownlessWarband.Core.Roguelite;
 
 namespace CrownlessWarband.Core.Battle
 {
@@ -140,6 +141,11 @@ namespace CrownlessWarband.Core.Battle
 
         public static int CalculateDamage(UnitState attacker, SkillInstance skill, UnitState target)
         {
+            return CalculateDamage(null, attacker, skill, target);
+        }
+
+        public static int CalculateDamage(BattleState state, UnitState attacker, SkillInstance skill, UnitState target)
+        {
             if (attacker == null || skill == null || target == null) return 0;
 
             int baseDamage = Math.Max(1, (int)(attacker.Attack * skill.PowerMultiplier) - target.Defense / 2);
@@ -155,12 +161,36 @@ namespace CrownlessWarband.Core.Battle
                 multiplier += 0.50f;
             }
 
+            // Blood Contract: +30% damage for player units
+            if (attacker.Team == TeamSide.Player && state != null && state.HasRelic(RelicType.BloodContract))
+            {
+                multiplier += 0.30f;
+            }
+
+            // World Modifier: Blood Moon (+25% damage for all units)
+            if (state != null && state.ActiveModifier == WorldModifierType.BloodMoon)
+            {
+                multiplier += 0.25f;
+            }
+
+            // Enemy Affix: Berserker (+30% Attack/Damage when HP < 50%)
+            if (attacker.Affix == EnemyAffixType.Berserker && attacker.HPPercentage < 0.50f)
+            {
+                multiplier += 0.30f;
+            }
+
+            // Boss Multi-Phase: Phase 3 Enrage (+35% damage)
+            if (attacker.BossPhase >= 3)
+            {
+                multiplier += 0.35f;
+            }
+
             return Math.Max(1, (int)(baseDamage * multiplier));
         }
 
         private static void ResolveDamage(BattleState state, UnitState attacker, SkillInstance skill, UnitState target, string aiDebugSummary)
         {
-            int finalDamage = CalculateDamage(attacker, skill, target);
+            int finalDamage = CalculateDamage(state, attacker, skill, target);
 
             // Deduct Shield first, then HP
             int remainingDamage = finalDamage;
@@ -198,9 +228,51 @@ namespace CrownlessWarband.Core.Battle
                 AIDebugSummary = aiDebugSummary
             });
 
+            // Chuyển giai đoạn Boss (Multi-Phase Boss Transitions - GDD Section 38)
+            if (target.IsAlive && target.BossPhase > 0)
+            {
+                // Phase 1 -> Phase 2 (target.BossPhase == 1 && target.HPPercentage <= 0.65f)
+                if (target.BossPhase == 1 && target.HPPercentage <= 0.65f)
+                {
+                    target.BossPhase = 2;
+                    target.Shield += 100;
+                    target.CurrentEnergy = target.MaxEnergy;
+                    state.EnqueueEvent(new CombatEvent
+                    {
+                        EventType = CombatEventType.StatusApplied,
+                        TurnNumber = state.CurrentTurn,
+                        SourceUnitId = target.InstanceId,
+                        TargetUnitId = target.InstanceId,
+                        SkillName = "Phase Transition",
+                        Description = "[BOSS PHASE 2] The Warden enters Phase 2 (Formation Breaker)! Gains +100 Shield & full Energy!",
+                        AIDebugSummary = aiDebugSummary
+                    });
+                }
+                // Phase 2 -> Phase 3 (target.BossPhase == 2 && target.HPPercentage <= 0.35f)
+                else if (target.BossPhase == 2 && target.HPPercentage <= 0.35f)
+                {
+                    target.BossPhase = 3;
+                    target.Attack += 15;
+                    target.Speed += 5;
+                    state.EnemySquadStrategy = SquadStrategyType.FocusFire;
+                    state.EnqueueEvent(new CombatEvent
+                    {
+                        EventType = CombatEventType.StatusApplied,
+                        TurnNumber = state.CurrentTurn,
+                        SourceUnitId = target.InstanceId,
+                        TargetUnitId = target.InstanceId,
+                        SkillName = "Phase Transition",
+                        Description = "[BOSS PHASE 3] The Warden enters Phase 3 (Berserk Overdrive)! Attack +15, Speed +5, Strategy -> FocusFire!",
+                        AIDebugSummary = aiDebugSummary
+                    });
+                }
+            }
+
             // Check death
             if (target.CurrentHP <= 0)
             {
+                bool wasMarkedBeforeDeath = target.IsMarked;
+
                 target.CurrentHP = 0;
                 target.Shield = 0;
                 target.CurrentEnergy = 0;
@@ -227,6 +299,36 @@ namespace CrownlessWarband.Core.Battle
                     Description = $"{target.Name} has fallen!",
                     AIDebugSummary = aiDebugSummary
                 });
+
+                // Chain Relay: When a Marked enemy dies, transfer mark to first alive enemy
+                if (wasMarkedBeforeDeath && state.HasRelic(RelicType.ChainRelay) && target.Team == TeamSide.Enemy)
+                {
+                    UnitState nextEnemy = null;
+                    for (int i = 0; i < state.Units.Count; i++)
+                    {
+                        var u = state.Units[i];
+                        if (u != null && u.Team == TeamSide.Enemy && u.IsAlive && u.InstanceId != target.InstanceId)
+                        {
+                            nextEnemy = u;
+                            break;
+                        }
+                    }
+
+                    if (nextEnemy != null)
+                    {
+                        nextEnemy.IsMarked = true;
+                        state.EnqueueEvent(new CombatEvent
+                        {
+                            EventType = CombatEventType.StatusApplied,
+                            TurnNumber = state.CurrentTurn,
+                            SourceUnitId = attacker.InstanceId,
+                            TargetUnitId = nextEnemy.InstanceId,
+                            SkillName = "Chain Relay",
+                            Description = $"[Chain Relay] Mark transferred to {nextEnemy.Name}!",
+                            AIDebugSummary = aiDebugSummary
+                        });
+                    }
+                }
             }
         }
 
@@ -235,6 +337,19 @@ namespace CrownlessWarband.Core.Battle
             if (target == null || !target.IsAlive) return;
 
             int healAmount = Math.Max(1, (int)(attacker.Attack * skill.PowerMultiplier));
+
+            // Emergency Protocol: +50% healing if target < 35% HP
+            if (attacker.Team == TeamSide.Player && state != null && state.HasRelic(RelicType.EmergencyProtocol) && target.HPPercentage < 0.35f)
+            {
+                healAmount = (int)(healAmount * 1.5f);
+            }
+
+            // World Modifier: No Healing (Giảm 70% hiệu quả hồi máu)
+            if (state != null && state.ActiveModifier == WorldModifierType.NoHealing)
+            {
+                healAmount = Math.Max(1, (int)(healAmount * 0.30f));
+            }
+
             int oldHP = target.CurrentHP;
             target.CurrentHP = Math.Min(target.MaxHP, target.CurrentHP + healAmount);
             int actualHealed = target.CurrentHP - oldHP;

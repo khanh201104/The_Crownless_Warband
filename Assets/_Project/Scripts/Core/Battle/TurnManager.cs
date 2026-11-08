@@ -54,6 +54,29 @@ namespace CrownlessWarband.Core.Battle
                 }
             }
 
+            // World Modifier: Overcharge (+15 Energy cho toàn bộ unit mỗi turn)
+            if (state.ActiveModifier == WorldModifierType.Overcharge)
+            {
+                for (int i = 0; i < state.Units.Count; i++)
+                {
+                    var u = state.Units[i];
+                    if (u != null && u.IsAlive)
+                    {
+                        u.CurrentEnergy = Math.Min(u.MaxEnergy, u.CurrentEnergy + 15);
+                    }
+                }
+
+                if (state.CurrentTurn > 1)
+                {
+                    state.EnqueueEvent(new CombatEvent
+                    {
+                        EventType = CombatEventType.StatusApplied,
+                        TurnNumber = state.CurrentTurn,
+                        Description = "[World Modifier: Overcharge] All units gained +15 Energy."
+                    });
+                }
+            }
+
             // Đánh giá chiến lược đầu lượt cho cả 2 phe (GDD Mục 10, 20)
             SquadAI.EvaluateAndUpdateStrategy(state, TeamSide.Player);
             SquadAI.EvaluateAndUpdateStrategy(state, TeamSide.Enemy);
@@ -242,6 +265,47 @@ namespace CrownlessWarband.Core.Battle
                 TurnNumber = state.CurrentTurn,
                 Description = $"Phase changed to {TurnPhase.Resolution}."
             });
+
+            // 1. World Modifier: Acid Rain (gây sát thương 5% MaxHP lên mọi unit)
+            if (state.ActiveModifier == WorldModifierType.AcidRain)
+            {
+                for (int i = 0; i < state.Units.Count; i++)
+                {
+                    var u = state.Units[i];
+                    if (u != null && u.IsAlive)
+                    {
+                        int dmg = Math.Max(1, (int)(u.MaxHP * 0.05f));
+                        u.CurrentHP = Math.Max(1, u.CurrentHP - dmg); // Giữ tối thiểu 1 HP
+                    }
+                }
+
+                state.EnqueueEvent(new CombatEvent
+                {
+                    EventType = CombatEventType.DamageDealt,
+                    TurnNumber = state.CurrentTurn,
+                    Description = "[World Modifier: Acid Rain] Acid rain deals 5% MaxHP damage to all units!"
+                });
+            }
+
+            // 2. Enemy Affix: Regenerator (hồi 8% MaxHP cuối mỗi turn)
+            for (int i = 0; i < state.Units.Count; i++)
+            {
+                var u = state.Units[i];
+                if (u != null && u.IsAlive && u.Affix == EnemyAffixType.Regenerator && u.CurrentHP < u.MaxHP)
+                {
+                    int regenAmount = Math.Max(1, (int)(u.MaxHP * 0.08f));
+                    u.CurrentHP = Math.Min(u.MaxHP, u.CurrentHP + regenAmount);
+                    state.EnqueueEvent(new CombatEvent
+                    {
+                        EventType = CombatEventType.HealApplied,
+                        TurnNumber = state.CurrentTurn,
+                        SourceUnitId = u.InstanceId,
+                        TargetUnitId = u.InstanceId,
+                        Value = regenAmount,
+                        Description = $"[Enemy Affix: Regenerator] {u.Name} regenerated {regenAmount} HP."
+                    });
+                }
+            }
 
             // Kiểm tra điều kiện kết thúc trận đấu (Win / Loss)
             if (IsBattleOver(state, out TeamSide? winner))

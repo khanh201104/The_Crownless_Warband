@@ -50,4 +50,27 @@ namespace CrownlessWarband.Core.Battle
         Attrition,
         Defensive
     }
+
+    /// <summary>
+    /// Biến số Môi trường chiến trường (World Modifiers - GDD Section 33).
+    /// </summary>
+    public enum WorldModifierType
+    {
+        None = 0,
+        AcidRain,       // Cuối mỗi turn, toàn bộ unit mất 5% MaxHP
+        BloodMoon,      // Cả 2 phe gây thêm +25% sát thương
+        Overcharge,     // Đầu mỗi turn, toàn bộ unit nhận thêm +15 Energy
+        NoHealing       // Hiệu quả hồi máu (Heal) bị giảm 70%
+    }
+
+    /// <summary>
+    /// Tiền tố biến thể Kẻ địch (Enemy Affixes - GDD Section 34).
+    /// </summary>
+    public enum EnemyAffixType
+    {
+        None = 0,
+        Armored,        // +35% Defense và bắt đầu trận với 40 Shield
+        Berserker,      // +30% Attack khi HP < 50%
+        Regenerator     // Hồi 8% MaxHP vào cuối mỗi turn
+    }
 }

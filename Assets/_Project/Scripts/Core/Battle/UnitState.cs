@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using CrownlessWarband.Core.AI;
 
 namespace CrownlessWarband.Core.Battle
 {
@@ -44,6 +45,9 @@ namespace CrownlessWarband.Core.Battle
         public bool IsMarked;
         public bool IsStunned;
         public string ProtectingAllyId; // ID đồng minh mà Guardian đang bảo vệ (Interception)
+        public UnitAIPolicy AIPolicy = new UnitAIPolicy();
+        public EnemyAffixType Affix = EnemyAffixType.None;
+        public int BossPhase = 0; // 0 for normal units; 1, 2, 3 for Boss phases (GDD Section 38)
 
         // Skills
         public List<SkillInstance> Skills = new List<SkillInstance>();

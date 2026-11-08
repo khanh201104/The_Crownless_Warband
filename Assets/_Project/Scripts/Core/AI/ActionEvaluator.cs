@@ -50,6 +50,12 @@ namespace CrownlessWarband.Core.AI
                 tacticalFitScore += 35f;
             }
 
+            // Điểm cộng từ Khuynh hướng hành vi (BehaviorPreset) của Player AI Policy (GDD Section 18)
+            if (actor != null && actor.AIPolicy != null)
+            {
+                tacticalFitScore += actor.AIPolicy.GetActionPresetBonus(skill);
+            }
+
             // 3. UrgencyScore: Điểm ưu tiên kỹ năng Ultimate
             float urgencyScore = (skill.Slot == SkillSlotType.Ultimate) ? 20f : 0f;
 
@@ -85,6 +91,10 @@ namespace CrownlessWarband.Core.AI
 
             // 2. TacticalFitScore
             float tacticalFitScore = 10f;
+            if (actor != null && actor.AIPolicy != null)
+            {
+                tacticalFitScore += actor.AIPolicy.GetActionPresetBonus(skill);
+            }
 
             // 3. UrgencyScore: Tính theo mức độ cấp bách của đồng minh
             float urgencyScore = (skill.Slot == SkillSlotType.Ultimate) ? 20f : 0f;

@@ -27,7 +27,7 @@ namespace CrownlessWarband.Core.AI
             float strategicValueScore = (target.Role == UnitRole.Medic || target.Role == UnitRole.Mage || target.Role == UnitRole.Ranger) ? 25f : 10f;
 
             // 3. KillProbabilityScore: Khả năng dứt điểm mục tiêu
-            int estimatedDamage = CombatResolver.CalculateDamage(actor, skill, target);
+            int estimatedDamage = CombatResolver.CalculateDamage(state, actor, skill, target);
             int effectiveHp = target.CurrentHP + target.Shield;
             float killProbabilityScore;
             if (estimatedDamage >= effectiveHp)
@@ -75,6 +75,12 @@ namespace CrownlessWarband.Core.AI
                         rolePriorityScore += 10f;
                     }
                     break;
+            }
+
+            // Cộng thêm điểm ưu tiên mục tiêu do người chơi cấu hình qua UnitAIPolicy (GDD Section 19)
+            if (actor.AIPolicy != null)
+            {
+                rolePriorityScore += actor.AIPolicy.GetTargetRuleBonus(actor, target);
             }
 
             // 6. SquadDirectiveBonus: Điểm cộng từ mệnh lệnh chiến lược của Squad AI

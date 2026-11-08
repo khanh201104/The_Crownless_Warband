@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using CrownlessWarband.Core.Battle;
 using CrownlessWarband.Core.Events;
+using CrownlessWarband.Core.Roguelite;
 
 namespace CrownlessWarband.Core.AI
 {
@@ -153,6 +154,20 @@ namespace CrownlessWarband.Core.AI
             // 4. Nếu chiến lược thay đổi, cập nhật BattleState và phát CombatEvent
             if (newStrategy != oldStrategy)
             {
+                string relicNote = "";
+                if (team == TeamSide.Player && state.HasRelic(RelicType.TacticalCore))
+                {
+                    for (int i = 0; i < state.Units.Count; i++)
+                    {
+                        var u = state.Units[i];
+                        if (u != null && u.Team == TeamSide.Player && u.IsAlive)
+                        {
+                            u.CurrentEnergy = Math.Min(u.MaxEnergy, u.CurrentEnergy + 10);
+                        }
+                    }
+                    relicNote = " [Tactical Core] All player units gained +10 Energy!";
+                }
+
                 if (team == TeamSide.Player)
                 {
                     state.PlayerSquadStrategy = newStrategy;
@@ -166,7 +181,7 @@ namespace CrownlessWarband.Core.AI
                 {
                     EventType = CombatEventType.SquadStrategyChanged,
                     TurnNumber = state.CurrentTurn,
-                    Description = $"{team} Squad AI adapted strategy: {oldStrategy} -> {newStrategy}"
+                    Description = $"{team} Squad AI adapted strategy: {oldStrategy} -> {newStrategy}.{relicNote}"
                 });
             }
         }

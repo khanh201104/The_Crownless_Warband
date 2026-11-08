@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using CrownlessWarband.Core.AI;
 using CrownlessWarband.Core.Events;
+using CrownlessWarband.Core.Roguelite;
 
 namespace CrownlessWarband.Core.Battle
 {
@@ -19,11 +20,26 @@ namespace CrownlessWarband.Core.Battle
 
         public SquadStrategyType PlayerSquadStrategy = SquadStrategyType.Balanced;
         public SquadStrategyType EnemySquadStrategy = SquadStrategyType.DirectAssault;
+        public WorldModifierType ActiveModifier = WorldModifierType.None;
 
         public List<UnitState> Units = new List<UnitState>();
+        public List<RelicType> ActiveRelics = new List<RelicType>();
         public List<string> CombatLog = new List<string>();
         public Queue<CombatEvent> EventQueue = new Queue<CombatEvent>();
         public Dictionary<string, UnitAIDecisionLog> LastUnitDecisions = new Dictionary<string, UnitAIDecisionLog>();
+
+        /// <summary>
+        /// Kiểm tra phe người chơi có sở hữu một Di vật nhất định không (không dùng LINQ)
+        /// </summary>
+        public bool HasRelic(RelicType relic)
+        {
+            if (ActiveRelics == null) return false;
+            for (int i = 0; i < ActiveRelics.Count; i++)
+            {
+                if (ActiveRelics[i] == relic) return true;
+            }
+            return false;
+        }
 
         // --- Các hàm truy vấn nhanh cho AI Observation (GDD Mục 15) ---
 

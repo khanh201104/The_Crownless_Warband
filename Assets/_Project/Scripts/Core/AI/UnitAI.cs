@@ -114,6 +114,13 @@ namespace CrownlessWarband.Core.AI
 
                     if (bestTargetForSkill != null)
                     {
+                        // Kiểm tra điều kiện thi triển kỹ năng do người chơi cấu hình (Player-Configurable AI)
+                        if (skill.Slot != SkillSlotType.BasicAttack && actor.AIPolicy != null &&
+                            !actor.AIPolicy.IsSkillConditionMet(state, actor, skill, bestTargetForSkill, aliveEnemies.Count))
+                        {
+                            continue;
+                        }
+
                         var actionScore = ActionEvaluator.EvaluateOffensiveAction(
                             state, actor, skill, bestTargetForSkill, bestTargetScore, aliveEnemies.Count);
                         decisionLog.EvaluatedActions.Add(actionScore);
@@ -200,6 +207,13 @@ namespace CrownlessWarband.Core.AI
 
                     if (targetAlly != null)
                     {
+                        // Kiểm tra điều kiện thi triển kỹ năng do người chơi cấu hình (Player-Configurable AI)
+                        if (skill.Slot != SkillSlotType.BasicAttack && actor.AIPolicy != null &&
+                            !actor.AIPolicy.IsSkillConditionMet(state, actor, skill, targetAlly, aliveEnemies.Count))
+                        {
+                            continue;
+                        }
+
                         var actionScore = ActionEvaluator.EvaluateSupportAction(
                             state, actor, skill, targetAlly, allAlliesHighHp);
                         decisionLog.EvaluatedActions.Add(actionScore);
