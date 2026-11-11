@@ -56,10 +56,20 @@ namespace CrownlessWarband.Core.AI
                 int matchSeed = baseSeed + (match * 79) + 13;
 
                 // 1. Tạo đội hình người chơi với Preset chỉ định
+                // Trong AIBatchSimulator.cs (thay thế đoạn tạo playerUnits ở đầu vòng lặp for):
                 var playerUnits = CampaignGenerator.CreateDefaultPlayerWarband();
                 for (int p = 0; p < playerUnits.Count; p++)
                 {
                     playerUnits[p].AIPolicy.BehaviorPreset = teamPresetOverride;
+
+                    // Cho phép các kỹ năng Manual (như Ultimate Meteor Storm của Mage) tự động kích hoạt khi chạy giả lập Headless
+                    for (int s = 0; s < playerUnits[p].Skills.Count; s++)
+                    {
+                        if (playerUnits[p].Skills[s].ControlMode == SkillControlMode.Manual)
+                        {
+                            playerUnits[p].Skills[s].ControlMode = SkillControlMode.Auto;
+                        }
+                    }
                 }
 
                 // 2. Tạo trạng thái trận đấu
@@ -230,7 +240,7 @@ namespace CrownlessWarband.Core.AI
             }
 
             ApplyAffix(enemies[firstIdx], affixTypes[rng.Next(affixTypes.Length)]);
-            ApplyAffix(enemies[secondIdx], affixTypes[rng.Next(affixTypes.Length)]);
+            // ApplyAffix(enemies[secondIdx], affixTypes[rng.Next(affixTypes.Length)]);
 
             for (int i = 0; i < enemies.Count; i++)
             {
