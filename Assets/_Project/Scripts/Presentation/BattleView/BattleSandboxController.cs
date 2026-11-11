@@ -33,11 +33,14 @@ namespace CrownlessWarband.Presentation.BattleView
         private Vector2 _mapScrollPos = Vector2.zero;
         private Vector2 _policyScrollPos = Vector2.zero;
         private Vector2 _simReportScrollPos = Vector2.zero;
+        private Vector2 _qaAuditScrollPos = Vector2.zero;
 
         // Trạng thái cho Headless AI Batch Simulator
         private BatchSimulationResult _lastSimResult;
         private WorldModifierType _simModifier = WorldModifierType.None;
         private UnitBehaviorPreset _simPreset = UnitBehaviorPreset.Balanced;
+        private string _qaAuditReport;
+        private int _simViewTab = 0; // 0 = 50/100 Matches, 1 = QA Audit Report, 2 = Combined
 
         private string _saveStatusMsg = "Save System Ready";
         private string SaveFilePath => Path.Combine(Application.persistentDataPath, "crownless_run.save.json");
@@ -576,11 +579,21 @@ namespace CrownlessWarband.Presentation.BattleView
 
             if (GUILayout.Button("[Test Boss Warden]", GUILayout.Height(30), GUILayout.Width(135)))
             {
+                // Hồi phục 100% Max HP cho toàn bộ warband trước khi test Boss để đảm bảo tính công bằng
+                if (CurrentRun != null)
+                {
+                    for (int i = 0; i < CurrentRun.PlayerRoster.Count; i++)
+                    {
+                        var u = CurrentRun.PlayerRoster[i];
+                        u.CurrentHP = u.MaxHP;
+                    }
+                }
+
                 var bossNode = CurrentRun != null ? CurrentRun.Nodes.Find(n => n.NodeType == CampaignNodeType.Boss) : null;
                 if (bossNode == null) bossNode = new CampaignNode(4, 0, "F4_L0", CampaignNodeType.Boss, "The Warden's Stronghold", 100);
                 CurrentState = CampaignGenerator.CreateBattleForNode(CurrentRun, bossNode);
                 TurnManager.StartPlanningPhase(CurrentState);
-                _saveStatusMsg = "Spawned Boss: The Warden (Multi-Phase Test)";
+                _saveStatusMsg = "Spawned Boss: The Warden (Multi-Phase Test - Full Warband Restored)";
             }
 
             if (GUILayout.Button("[Kill Assassin]", GUILayout.Height(30), GUILayout.Width(100)))
@@ -815,6 +828,7 @@ namespace CrownlessWarband.Presentation.BattleView
             {
                 int baseSeed = CurrentRun != null ? CurrentRun.Seed : 12345;
                 _lastSimResult = AIBatchSimulator.RunBatchSimulation(50, baseSeed, _simModifier, _simPreset);
+                _simViewTab = 0;
                 _saveStatusMsg = $"Batch Sim Completed: 50 matches ({_lastSimResult.ElapsedMilliseconds:F1}ms)";
             }
 
@@ -823,16 +837,84 @@ namespace CrownlessWarband.Presentation.BattleView
             {
                 int baseSeed = CurrentRun != null ? CurrentRun.Seed : 12345;
                 _lastSimResult = AIBatchSimulator.RunBatchSimulation(100, baseSeed, _simModifier, _simPreset);
+                _simViewTab = 0;
                 _saveStatusMsg = $"Batch Sim Completed: 100 matches ({_lastSimResult.ElapsedMilliseconds:F1}ms)";
             }
             GUI.backgroundColor = Color.white;
             GUILayout.EndHorizontal();
 
+            GUILayout.Space(6);
+
+            // Nút bấm kiểm thử QA toàn diện tự động
+            GUI.backgroundColor = new Color(1f, 0.85f, 0.2f);
+            if (GUILayout.Button("<b>[Run Full QA & Balance Audit (Auto-Test All Systems)]</b>", GUILayout.Height(36)))
+            {
+                int baseSeed = CurrentRun != null ? CurrentRun.Seed : 847291;
+                try
+                {
+                    _qaAuditReport = CrownlessWarband.Core.AI.QAAndBalanceAuditor.RunFullQAAudit(baseSeed);
+                    _simViewTab = 1;
+                    _saveStatusMsg = "QA & Balance Audit Completed successfully!";
+                }
+                catch (System.Exception ex)
+                {
+                    _qaAuditReport = $"[FATAL AUDIT ERROR]: {ex.Message}\n{ex.StackTrace}";
+                    _simViewTab = 1;
+                    _saveStatusMsg = "QA & Balance Audit encountered an error!";
+                }
+            }
+            GUI.backgroundColor = Color.white;
+
             GUILayout.EndVertical();
 
             GUILayout.Space(8);
 
-            // Hiển thị kết quả giả lập
+            // Hàng thanh điều hướng Sub-Tabs (Cho phép chuyển đổi linh hoạt giữa 50/100 matches và QA Audit)
+            GUILayout.BeginHorizontal();
+
+            GUI.backgroundColor = _simViewTab == 0 ? Color.cyan : Color.white;
+            string matchTabTitle = _lastSimResult != null ? $"[1. Match Sim ({_lastSimResult.TotalBattles} matches)]" : "[1. Match Sim Results]";
+            if (GUILayout.Button(matchTabTitle, GUILayout.Height(28)))
+            {
+                _simViewTab = 0;
+            }
+
+            GUI.backgroundColor = _simViewTab == 1 ? new Color(1f, 0.85f, 0.2f) : Color.white;
+            string qaTabTitle = !string.IsNullOrEmpty(_qaAuditReport) ? "[2. QA & Balance Audit (Available)]" : "[2. QA & Balance Audit]";
+            if (GUILayout.Button(qaTabTitle, GUILayout.Height(28)))
+            {
+                _simViewTab = 1;
+            }
+
+            GUI.backgroundColor = _simViewTab == 2 ? Color.green : Color.white;
+            if (GUILayout.Button("[3. View Both Stacked (Dual Monitor)]", GUILayout.Height(28)))
+            {
+                _simViewTab = 2;
+            }
+
+            GUI.backgroundColor = Color.white;
+            GUILayout.EndHorizontal();
+
+            GUILayout.Space(6);
+
+            if (_simViewTab == 0)
+            {
+                DrawMatchSimulationSection(panelWidth, isCompact: false);
+            }
+            else if (_simViewTab == 1)
+            {
+                DrawQAAuditSection(isCompact: false);
+            }
+            else
+            {
+                DrawMatchSimulationSection(panelWidth, isCompact: true);
+                GUILayout.Space(6);
+                DrawQAAuditSection(isCompact: true);
+            }
+        }
+
+        private void DrawMatchSimulationSection(float panelWidth, bool isCompact)
+        {
             if (_lastSimResult != null)
             {
                 GUILayout.Label("=== SIMULATION METRICS BREAKDOWN ===", _subHeaderStyle);
@@ -852,7 +934,7 @@ namespace CrownlessWarband.Presentation.BattleView
                 GUI.color = Color.cyan;
                 GUILayout.Label($"<b>Avg Turns: {_lastSimResult.AverageTurns:F1}</b>", _headerStyle);
                 GUI.color = Color.white;
-                GUILayout.Label($"Strategy Adaptations: {_lastSimResult.TotalStrategyAdaptations} ({(float)_lastSimResult.TotalStrategyAdaptations / _lastSimResult.TotalBattles:F1}/match)");
+                GUILayout.Label($"Adaptations: {_lastSimResult.TotalStrategyAdaptations} ({(float)_lastSimResult.TotalStrategyAdaptations / _lastSimResult.TotalBattles:F1}/match)");
                 GUILayout.EndVertical();
 
                 // Thẻ Hiệu năng Thời gian
@@ -860,23 +942,49 @@ namespace CrownlessWarband.Presentation.BattleView
                 GUI.color = Color.magenta;
                 GUILayout.Label($"<b>Speed: {_lastSimResult.ElapsedMilliseconds:F1} ms</b>", _headerStyle);
                 GUI.color = Color.white;
-                GUILayout.Label($"Avg: {_lastSimResult.ElapsedMilliseconds / _lastSimResult.TotalBattles:F2} ms / full battle");
+                GUILayout.Label($"Avg: {_lastSimResult.ElapsedMilliseconds / _lastSimResult.TotalBattles:F2} ms/match");
                 GUILayout.EndVertical();
 
                 GUILayout.EndHorizontal();
 
-                GUILayout.Space(6);
+                GUILayout.Space(4);
 
                 // Hộp hiển thị chi tiết báo cáo dạng text
                 GUILayout.Label("=== FULL SIMULATION REPORT (Academic Output) ===", _subHeaderStyle);
-                _simReportScrollPos = GUILayout.BeginScrollView(_simReportScrollPos, GUI.skin.box, GUILayout.Height(150));
+                float scrollHeight = isCompact ? 100 : 160;
+                _simReportScrollPos = GUILayout.BeginScrollView(_simReportScrollPos, GUI.skin.box, GUILayout.Height(scrollHeight));
                 GUILayout.TextArea(_lastSimResult.SummaryReport, _logStyle);
                 GUILayout.EndScrollView();
             }
             else
             {
                 GUILayout.BeginVertical(GUI.skin.box);
-                GUILayout.Label("No simulation has been run yet. Click one of the buttons above to execute headless matches instantaneously.", _logStyle);
+                GUILayout.Label("No match simulation has been run yet. Click [Run 50 Matches] or [Run 100 Matches] above to execute headless matches instantaneously.", _logStyle);
+                GUILayout.EndVertical();
+            }
+        }
+
+        private void DrawQAAuditSection(bool isCompact)
+        {
+            if (!string.IsNullOrEmpty(_qaAuditReport))
+            {
+                GUILayout.BeginHorizontal();
+                GUILayout.Label("=== AUTOMATED QA & BALANCE AUDIT REPORT ===", _headerStyle);
+                if (GUILayout.Button("[Clear Audit Report]", GUILayout.Width(130), GUILayout.Height(22)))
+                {
+                    _qaAuditReport = null;
+                }
+                GUILayout.EndHorizontal();
+
+                float scrollHeight = isCompact ? 140 : 250;
+                _qaAuditScrollPos = GUILayout.BeginScrollView(_qaAuditScrollPos, GUI.skin.box, GUILayout.Height(scrollHeight));
+                GUILayout.TextArea(_qaAuditReport, _logStyle);
+                GUILayout.EndScrollView();
+            }
+            else
+            {
+                GUILayout.BeginVertical(GUI.skin.box);
+                GUILayout.Label("No QA & Balance Audit has been run yet. Click [Run Full QA & Balance Audit] above to verify invariants, serialization and AI stability.", _logStyle);
                 GUILayout.EndVertical();
             }
         }

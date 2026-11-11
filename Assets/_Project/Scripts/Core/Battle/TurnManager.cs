@@ -307,6 +307,43 @@ namespace CrownlessWarband.Core.Battle
                 }
             }
 
+            // 3. Cơ chế Sudden Death / Attrition sau lượt 15 để chống giằng co vô tận (Anti-Stall)
+            if (state.CurrentTurn >= 15)
+            {
+                int fatigue = (state.CurrentTurn - 14) * 6;
+                for (int i = 0; i < state.Units.Count; i++)
+                {
+                    var u = state.Units[i];
+                    if (u != null && u.IsAlive)
+                    {
+                        u.CurrentHP = Math.Max(0, u.CurrentHP - fatigue);
+                        if (u.CurrentHP == 0)
+                        {
+                            u.Shield = 0;
+                            u.CurrentEnergy = 0;
+                            u.IsMarked = false;
+                            u.IsStunned = false;
+                            u.ProtectingAllyId = null;
+
+                            for (int a = 0; a < state.Units.Count; a++)
+                            {
+                                if (state.Units[a].ProtectingAllyId == u.InstanceId)
+                                {
+                                    state.Units[a].ProtectingAllyId = null;
+                                }
+                            }
+                            state.EnqueueEvent(new CombatEvent
+                            {
+                                EventType = CombatEventType.UnitDied,
+                                TurnNumber = state.CurrentTurn,
+                                TargetUnitId = u.InstanceId,
+                                Description = $"{u.Name} succumbed to battlefield exhaustion (Turn {state.CurrentTurn} Fatigue)!"
+                            });
+                        }
+                    }
+                }
+            }
+
             // Kiểm tra điều kiện kết thúc trận đấu (Win / Loss)
             if (IsBattleOver(state, out TeamSide? winner))
             {
@@ -371,6 +408,49 @@ namespace CrownlessWarband.Core.Battle
             {
                 winner = TeamSide.Player;
                 return true;
+            }
+
+            // Giới hạn tối đa 25 lượt: Phân định kết quả theo số lượng sống và % HP để tránh giằng co
+            if (state.CurrentTurn >= 25)
+            {
+                int playerLivingCount = 0;
+                int enemyLivingCount = 0;
+                float playerTotalHpPct = 0f;
+                float enemyTotalHpPct = 0f;
+
+                for (int i = 0; i < state.Units.Count; i++)
+                {
+                    var u = state.Units[i];
+                    if (u != null && u.IsAlive)
+                    {
+                        if (u.Team == TeamSide.Player)
+                        {
+                            playerLivingCount++;
+                            playerTotalHpPct += u.HPPercentage;
+                        }
+                        else
+                        {
+                            enemyLivingCount++;
+                            enemyTotalHpPct += u.HPPercentage;
+                        }
+                    }
+                }
+
+                if (playerLivingCount > enemyLivingCount)
+                {
+                    winner = TeamSide.Player;
+                    return true;
+                }
+                else if (enemyLivingCount > playerLivingCount)
+                {
+                    winner = TeamSide.Enemy;
+                    return true;
+                }
+                else
+                {
+                    winner = playerTotalHpPct >= enemyTotalHpPct ? TeamSide.Player : TeamSide.Enemy;
+                    return true;
+                }
             }
 
             return false;

@@ -235,7 +235,7 @@ namespace CrownlessWarband.Core.Battle
                 if (target.BossPhase == 1 && target.HPPercentage <= 0.65f)
                 {
                     target.BossPhase = 2;
-                    target.Shield += 100;
+                    target.Shield += 60;
                     target.CurrentEnergy = target.MaxEnergy;
                     state.EnqueueEvent(new CombatEvent
                     {
@@ -244,7 +244,7 @@ namespace CrownlessWarband.Core.Battle
                         SourceUnitId = target.InstanceId,
                         TargetUnitId = target.InstanceId,
                         SkillName = "Phase Transition",
-                        Description = "[BOSS PHASE 2] The Warden enters Phase 2 (Formation Breaker)! Gains +100 Shield & full Energy!",
+                        Description = "[BOSS PHASE 2] The Warden enters Phase 2 (Formation Breaker)! Gains +60 Shield & full Energy!",
                         AIDebugSummary = aiDebugSummary
                     });
                 }

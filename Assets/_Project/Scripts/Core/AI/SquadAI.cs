@@ -107,7 +107,20 @@ namespace CrownlessWarband.Core.AI
             }
 
             // 3. Logic thích nghi chiến thuật (Mid-Battle AI Adaptation - GDD Mục 23 & 53)
+            int lastChangeTurn = team == TeamSide.Player ? state.LastPlayerStrategyChangeTurn : state.LastEnemyStrategyChangeTurn;
             SquadStrategyType oldStrategy = team == TeamSide.Player ? state.PlayerSquadStrategy : state.EnemySquadStrategy;
+
+            // Chống dao động chiến thuật (Thrashing): Chỉ đổi tối đa 1 lần mỗi turn, trừ khi unit chủ chốt tử trận
+            if (lastChangeTurn == state.CurrentTurn)
+            {
+                bool keyUnitDied = (oldStrategy == SquadStrategyType.ProtectBackline && !hasAliveGuardian) ||
+                                   (oldStrategy == SquadStrategyType.BacklineDive && !teamHasBacklineDiver);
+                if (!keyUnitDied)
+                {
+                    return;
+                }
+            }
+
             SquadStrategyType newStrategy = oldStrategy;
 
             // Ưu tiên 1: Đội hình nguy kịch (< 40% HP trung bình) -> Chuyển sang phòng thủ
@@ -171,10 +184,12 @@ namespace CrownlessWarband.Core.AI
                 if (team == TeamSide.Player)
                 {
                     state.PlayerSquadStrategy = newStrategy;
+                    state.LastPlayerStrategyChangeTurn = state.CurrentTurn;
                 }
                 else
                 {
                     state.EnemySquadStrategy = newStrategy;
+                    state.LastEnemyStrategyChangeTurn = state.CurrentTurn;
                 }
 
                 state.EnqueueEvent(new CombatEvent

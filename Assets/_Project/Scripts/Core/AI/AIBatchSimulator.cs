@@ -175,50 +175,49 @@ namespace CrownlessWarband.Core.AI
             }
 
             // Enemy Tank (Front[1])
-            int tankHp = Vary(260, 15);
+            int tankHp = Vary(300, 10);
             var eTank = new UnitState("e_tank", "Enemy Tank", TeamSide.Enemy, UnitRole.Guardian,
-                new FormationPosition(RowType.Front, 1), tankHp, Vary(26, 15), 22, VarySpeed(10));
+                new FormationPosition(RowType.Front, 1), tankHp, Vary(30, 10), 22, VarySpeed(10));
             eTank.BaseThreat = 15f;
             eTank.Skills.Add(new SkillInstance("e_t_basic", "Mace Smash", SkillSlotType.BasicAttack, SkillControlMode.Auto, SkillTargetType.SingleEnemy, SkillEffectType.Damage, 0, 0, 1.0f));
             eTank.Skills.Add(new SkillInstance("e_t_s1", "Iron Guard", SkillSlotType.Skill1, SkillControlMode.Auto, SkillTargetType.Self, SkillEffectType.Shield, 20, 2, 1.8f));
 
             // Enemy Assassin (Front[0]) - Backline Diver
-            int assHp = Vary(135, 15);
+            int assHp = Vary(160, 10);
             var eAssassin = new UnitState("e_assassin", "Enemy Assassin", TeamSide.Enemy, UnitRole.Vanguard,
-                new FormationPosition(RowType.Front, 0), assHp, Vary(48, 15), 8, VarySpeed(18));
+                new FormationPosition(RowType.Front, 0), assHp, Vary(52, 10), 8, VarySpeed(18));
             eAssassin.BaseThreat = 45f;
             eAssassin.Skills.Add(new SkillInstance("e_a_basic", "Shadow Stab", SkillSlotType.BasicAttack, SkillControlMode.Auto, SkillTargetType.SingleEnemy, SkillEffectType.Damage, 0, 0, 1.1f, true));
             eAssassin.Skills.Add(new SkillInstance("e_a_s1", "Backline Ambush", SkillSlotType.Skill1, SkillControlMode.Auto, SkillTargetType.SingleEnemy, SkillEffectType.ExecuteDamage, 0, 2, 1.7f, true));
 
             // Enemy Sniper (Back[0])
-            int snipHp = Vary(130, 15);
+            int snipHp = Vary(150, 10);
             var eSniper = new UnitState("e_sniper", "Enemy Sniper", TeamSide.Enemy, UnitRole.Ranger,
-                new FormationPosition(RowType.Back, 0), snipHp, Vary(42, 15), 8, VarySpeed(15));
+                new FormationPosition(RowType.Back, 0), snipHp, Vary(48, 10), 8, VarySpeed(16));
             eSniper.BaseThreat = 35f;
             eSniper.Skills.Add(new SkillInstance("e_s_basic", "Piercing Shot", SkillSlotType.BasicAttack, SkillControlMode.Auto, SkillTargetType.SingleEnemy, SkillEffectType.Damage, 0, 0, 1.0f, true));
 
             // Enemy Mage (Mid[1])
-            int mageHp = Vary(145, 15);
+            int mageHp = Vary(160, 10);
             var eMage = new UnitState("e_mage", "Enemy Mage", TeamSide.Enemy, UnitRole.Mage,
-                new FormationPosition(RowType.Mid, 1), mageHp, Vary(40, 15), 10, VarySpeed(12));
+                new FormationPosition(RowType.Mid, 1), mageHp, Vary(46, 10), 10, VarySpeed(13));
             eMage.BaseThreat = 35f;
             eMage.Skills.Add(new SkillInstance("e_m_basic", "Dark Bolt", SkillSlotType.BasicAttack, SkillControlMode.Auto, SkillTargetType.SingleEnemy, SkillEffectType.Damage, 0, 0, 1.0f, true));
-            eMage.Skills.Add(new SkillInstance("e_m_s1", "Shockwave", SkillSlotType.Skill1, SkillControlMode.Auto, SkillTargetType.AllEnemies, SkillEffectType.Damage, 20, 2, 1.3f, true));
+            eMage.Skills.Add(new SkillInstance("e_m_s1", "Shockwave", SkillSlotType.Skill1, SkillControlMode.Auto, SkillTargetType.AllEnemies, SkillEffectType.Damage, 20, 2, 1.35f, true));
 
             // Enemy Support (Back[2])
-            int supHp = Vary(140, 15);
+            int supHp = Vary(155, 10);
             var eSupport = new UnitState("e_support", "Enemy Support", TeamSide.Enemy, UnitRole.Medic,
-                new FormationPosition(RowType.Back, 2), supHp, Vary(32, 15), 10, VarySpeed(14));
+                new FormationPosition(RowType.Back, 2), supHp, Vary(38, 10), 10, VarySpeed(15));
             eSupport.BaseThreat = 35f;
             eSupport.Skills.Add(new SkillInstance("e_sup_basic", "Zap", SkillSlotType.BasicAttack, SkillControlMode.Auto, SkillTargetType.SingleEnemy, SkillEffectType.Damage, 0, 0, 0.8f, true));
-            eSupport.Skills.Add(new SkillInstance("e_sup_s1", "Dark Mend", SkillSlotType.Skill1, SkillControlMode.Auto, SkillTargetType.LowestHpAlly, SkillEffectType.Heal, 0, 1, 1.6f));
+            eSupport.Skills.Add(new SkillInstance("e_sup_s1", "Dark Mend", SkillSlotType.Skill1, SkillControlMode.Auto, SkillTargetType.LowestHpAlly, SkillEffectType.Heal, 0, 1, 1.7f));
 
             var enemies = new List<UnitState> { eTank, eAssassin, eSniper, eMage, eSupport };
 
-            // Gán ngẫu nhiên 2 Affixes cho 2 unit địch khác nhau trong mỗi trận
+            // Gán ngẫu nhiên 1 Affix cho 1 unit địch trong mỗi trận
             var affixTypes = new[] { EnemyAffixType.Armored, EnemyAffixType.Berserker, EnemyAffixType.Regenerator };
-            int firstIdx = rng.Next(enemies.Count);
-            int secondIdx = (firstIdx + 1 + rng.Next(enemies.Count - 1)) % enemies.Count;
+            int targetIdx = rng.Next(enemies.Count);
 
             void ApplyAffix(UnitState u, EnemyAffixType affix)
             {
@@ -239,8 +238,7 @@ namespace CrownlessWarband.Core.AI
                 }
             }
 
-            ApplyAffix(enemies[firstIdx], affixTypes[rng.Next(affixTypes.Length)]);
-            // ApplyAffix(enemies[secondIdx], affixTypes[rng.Next(affixTypes.Length)]);
+            ApplyAffix(enemies[targetIdx], affixTypes[rng.Next(affixTypes.Length)]);
 
             for (int i = 0; i < enemies.Count; i++)
             {

@@ -21,6 +21,8 @@ namespace CrownlessWarband.Core.Battle
         public SquadStrategyType PlayerSquadStrategy = SquadStrategyType.Balanced;
         public SquadStrategyType EnemySquadStrategy = SquadStrategyType.DirectAssault;
         public WorldModifierType ActiveModifier = WorldModifierType.None;
+        public int LastPlayerStrategyChangeTurn = -1;
+        public int LastEnemyStrategyChangeTurn = -1;
 
         public List<UnitState> Units = new List<UnitState>();
         public List<RelicType> ActiveRelics = new List<RelicType>();
