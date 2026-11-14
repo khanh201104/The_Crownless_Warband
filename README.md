@@ -1,353 +1,291 @@
-# The Crowless Warband (AI-Driven Tactical Roguelite)
-> **Tài liệu Thiết kế Game & Kiến trúc Kỹ thuật (AI Assistant Context Document)**  
-> **Phiên bản:** 0.2 (Tối ưu hóa cho AI Coding Assistant & Phát triển Unity)  
+# The Crownless Warband (AI-Driven Tactical Roguelite)
+> **Tài liệu Thiết kế Game (GDD), Kiến trúc Kỹ thuật & Kế hoạch Triển khai Đồ án (9 Tuần)**  
+> **Sinh viên thực hiện:** Phạm Quốc Khánh — MSSV: 20225138 (Đại học Bách Khoa Hà Nội)  
+> **Phiên bản:** 1.0 (Cập nhật Tiến độ Tuần 1–4 & Lộ trình Hoàn thiện Tuần 5–9)  
 > **Thể loại:** Tactical Roguelite / Turn-based Auto Combat / Squad Strategy  
 > **Nền tảng:** PC | **Engine:** Unity 2D (C#) | **Chế độ:** Single-player  
 
 ---
 
 ## 0. HƯỚNG DẪN DÀNH CHO AI TRỢ LÝ LẬP TRÌNH (SYSTEM PROMPT FOR AI ASSISTANTS)
-*Nếu bạn là một AI (Claude, ChatGPT, Cursor, GitHub Copilot) đang đọc file này để hỗ trợ viết code, thiết kế dữ liệu hoặc debug cho dự án **The Crowless Warband**, hãy tuân thủ tuyệt đối các nguyên tắc bất biến sau:*
+*Nếu bạn là một AI Coding Agent đang đọc file này để hỗ trợ viết code, thiết kế dữ liệu hoặc debug cho dự án **The Crownless Warband**, hãy tuân thủ tuyệt đối các nguyên tắc bất biến sau:*
 
-1. **Tách biệt Logic và Hiển thị (Pure C# Simulation vs. Unity View):**
-   - Toàn bộ hệ thống `BattleState`, `TurnManager`, `UnitAI`, `SquadAI`, `DamageSystem` **PHẢI** được viết bằng **Pure C# classes** (không kế thừa `MonoBehaviour`, không dùng `Transform`, `Coroutine`, hay `Animator` trực tiếp trong logic tính toán).
-   - Trận đấu diễn ra bằng cách thay đổi `BattleState` và đẩy các `CombatEvent` vào hàng đợi (`Queue<CombatEvent>`). Tầng UI/Visual của Unity sẽ đọc từ hàng đợi này để diễn hoạt.
+1. **Tách biệt Logic và Hiển thị (Humble Object Pattern — Phân tách 3 tầng bằng `.asmdef`):**
+   - **`CrownlessWarband.Core` (`Assets/_Project/Scripts/Core/`):** Thuần C# 100% (Pure C#, tuyệt đối không kế thừa `MonoBehaviour`, không dùng `ScriptableObject`, không gọi `Debug.Log`). Trận đấu diễn ra bằng cách cập nhật `BattleState`, ghi vào `BattleState.CombatLog` và đẩy các `CombatEvent` vào `BattleState.EventQueue`.
+   - **`CrownlessWarband.Data` (`Assets/_Project/Scripts/Data/`):** Chứa các định nghĩa `ScriptableObject` (`UnitDataSO`, `SkillDataSO`) để thiết kế dữ liệu trên Unity Inspector và chuyển đổi sang đối tượng Pure C# lúc Runtime.
+   - **`CrownlessWarband.Presentation` (`Assets/_Project/Scripts/Presentation/`):** Chứa các lớp `MonoBehaviour` đọc `BattleState` và tiêu thụ `EventQueue` để hiển thị đồ họa 2D, diễn hoạt `DOTween` và vẽ giao diện HUD / `F3 Explainable AI Debugger`.
 2. **Không có Pathfinding & Di chuyển tự do trong trận:**
-   - Chiến trường sử dụng hệ thống **Formation Slot cố định** (3 hàng: `FRONT`, `MID`, `BACK`, mỗi phe 6 ô). Tuyệt đối không sinh code tìm đường (`A*`, `NavMesh`) hay tính toán khoảng cách vật lý `Vector2.Distance` trong combat.
+   - Chiến trường sử dụng hệ thống **Formation Slot cố định** (3 hàng: `Front`, `Mid`, `Back`, mỗi hàng 3 cột `0..2`). Tuyệt đối không sinh code tìm đường (`A*`, `NavMesh`) hay tính khoảng cách vật lý trong logic tính toán.
 3. **AI là "Bạch hộp" (Explainable Utility AI), KHÔNG dùng Machine Learning hộp đen:**
-   - Mọi quyết định của AI (chọn mục tiêu, chọn kỹ năng, đổi chiến thuật đội) đều phải xuất ra được **bảng phân rã điểm số (Score Breakdown)** để hiển thị lên **AI Debug Mode (Phím F3)** và **Combat Log**.
-4. **Kiến trúc Hướng dữ liệu (Data-Driven với `ScriptableObject`):**
-   - Nhân vật, Kẻ địch, Kỹ năng, Di vật (Relic), và các yếu tố chấm điểm AI (`AIConsideration`) phải được thiết kế dưới dạng `ScriptableObject` hoặc JSON có thể cấu hình trên Inspector mà không cần hard-code.
+   - Mọi quyết định của AI (chọn mục tiêu, chọn kỹ năng, đổi chiến thuật đội) đều phải xuất ra cấu trúc `AIDecisionRecord` (`TargetScoreBreakdown` & `ActionScoreBreakdown`) để hiển thị lên **AI Debug Mode (Phím F3)** và **Combat Log**.
+4. **Tuân thủ Flash Coding Protocol:**
+   - Không sửa quá **3 file C#** trong một bước thực thi trừ khi có chỉ định rõ.
+   - Không dùng `LINQ` trong vòng lặp nóng (dùng `for`/`foreach` thuần để tránh cấp phát bộ nhớ rác GC).
 
 ---
 
-## 1. TỔNG QUAN DỰ ÁN & TẦM NHÌN
+## 1. TỔNG QUAN DỰ ÁN & TẦM NHÌN (GDD MỤC 1–6)
 
 ### 1.1. One-Sentence Pitch
-**The Crowless Warband** là game chiến thuật roguelite theo lượt, nơi người chơi xây dựng một đội hình và thiết lập chính sách hành vi chiến đấu cho từng unit, sau đó chứng kiến AI của hai phe tự phân tích, phối hợp và thích nghi qua từng trận đấu.
+**The Crownless Warband (Tàn Thành)** là game chiến thuật roguelite theo lượt, nơi người chơi xây dựng một đội hình và thiết lập chính sách hành vi chiến đấu cho từng unit, sau đó chứng kiến AI của hai phe tự phân tích, phối hợp và thích nghi qua từng trận đấu.
 
 ### 1.2. Ý tưởng cốt lõi (Core Concept)
 Người chơi không trực tiếp điều khiển từng đòn đánh cơ bản của nhân vật trong trận chiến, mà đảm nhận vai trò **Người chỉ huy đội hình (Squad Commander)**:
-- Tuyển chọn thành viên, xây dựng đội hình và xếp vị trí vào các ô Formation.
-- Xây dựng bộ kỹ năng, nâng cấp (Upgrades) và thu thập Di vật (Relics).
-- Thiết lập chính sách hành xử của AI (AI Policy/Behavior) cho từng unit và toàn đội.
-- Quyết định kỹ năng nào để AI tự dùng (`Auto` / `Semi-auto`) và kỹ năng nào do người chơi kích hoạt (`Manual`).
+- Tuyển chọn thành viên, xây dựng đội hình và xếp vị trí vào các ô Formation (`Front`, `Mid`, `Back`).
+- Xây dựng bộ kỹ năng, nâng cấp (`Upgrades`) và thu thập Di vật (`Relics`).
+- Thiết lập chính sách hành xử của AI (`UnitAIPolicy`) cho từng unit và chiến thuật toàn đội (`SquadStrategyType`).
+- Quyết định kỹ năng nào để AI tự dùng (`Auto` / `SemiAuto`) và kỹ năng nào do người chơi kích hoạt (`Manual`).
 - Quan sát diễn biến chiến đấu và can thiệp bằng kỹ năng/mệnh lệnh vào các thời điểm bước ngoặt.
 
-**Câu hỏi trọng tâm của Gameplay:** *"Mình đã xây dựng một đội hình đủ thông minh để tự chiến đấu chưa?"*
+> **Câu hỏi trọng tâm của Gameplay:** *"Mình đã xây dựng một đội hình đủ thông minh để tự chiến đấu chưa?"*
 
 ### 1.3. Cảm giác người chơi hướng tới (Game Fantasy)
-Một trận đấu thành công phải khiến người chơi thốt lên:
+Một trận đấu thành công phải khiến người chơi cảm nhận rõ:
 - *"Mình đã sắp xếp đội hình khắc chế hoàn hảo!"*
 - *"Đội hình này rất mạnh nhưng thiết lập ưu tiên AI của mình đang sai, chỉ cần chỉnh lại điều kiện của một unit là cục diện sẽ đảo chiều."*
 
 ### 1.4. Các nguyên tắc thiết kế (Design Pillars)
 1. **Strategy over Micromanagement:** Tập trung vào đội hình, hướng build, ưu tiên mục tiêu và kỹ năng tối thượng thay vì click từng đòn đánh mỗi lượt.
 2. **AI là Gameplay trung tâm:** Cả hai phe đều vận hành bằng AI (`PLAYER AI ↔ GAME STATE ↔ ENEMY AI`).
-3. **Mỗi Run là duy nhất:** Khác biệt thông qua Seed, đội hình, nâng cấp kỹ năng, di vật, sự kiện, biến thể kẻ địch và điều kiện môi trường (Modifiers).
-4. **Mở rộng nội dung bằng Hệ thống (Systemic Content):** Kết hợp tự động `Biomes + Encounter + Enemy + Affix + Modifier + Reward` thay vì thiết kế hàng trăm màn chơi thủ công.
+3. **Mỗi Run là duy nhất:** Khác biệt thông qua `Seed`, đội hình, nâng cấp kỹ năng, di vật, sự kiện, biến thể kẻ địch (`Affixes`) và điều kiện môi trường (`World Modifiers`).
+4. **Mở rộng nội dung bằng Hệ thống (Systemic Content):** Kết hợp tự động `Biomes + Encounter + Enemy + Affix + Modifier + Reward + Boss` thay vì thiết kế hàng trăm màn chơi thủ công.
 
----
-
-## 2. VÒNG LẶP GAMEPLAY & CẤU TRÚC CHIẾN DỊCH (ROGUELITE LOOP)
-
-### 2.1. Hai lớp cấu trúc Game
-1. **Campaign Layer (Lớp Chiến dịch):** Bản đồ dạng Node phân nhánh (giống *Slay the Spire*). Các loại Node bao gồm:
-   - `Combat` (Giao chiến thường)
-   - `Elite Combat` (Kẻ địch tinh anh)
-   - `Boss` (Trùm cuối khu vực)
-   - `Event` (Sự kiện ngẫu nhiên có lựa chọn Rủi ro/Phần thưởng)
-   - `Shop` (Cửa hàng mua bán Relic/Upgrade)
-   - `Recovery` (Hồi phục HP / Nâng cấp tại trại)
-2. **Battle Layer (Lớp Chiến đấu):** Nơi diễn ra trận đánh theo lượt tự động dựa trên đội hình và AI đã thiết lập.
-
-### 2.2. Core Game Loop
+### 1.5. Vòng lặp Gameplay (Core Game Loop)
 ```text
-[Căn cứ / Đầu Run: Khởi tạo Seed & Chọn Đội hình khởi đầu]
-       ↓
-[Campaign Map: Chọn Node tiếp theo trên nhánh đường đi]
-       ↓
-[Pre-Battle / Planning: Sắp xếp Formation + Chỉnh sửa AI Policy]
-       ↓
-[Battle Execution: AI hai phe tự giao chiến + Người chơi can thiệp Manual Skill]
-       ↓
-[Post-Battle: Nhận Reward -> Chọn Nâng cấp Kỹ năng / Relic -> Tiến tới Boss]
-       ↓
-[Kết thúc Run (Thắng/Thua) -> Mở khóa Meta Progression -> Bắt đầu Run mới / Endless Mode]
+[Khởi tạo Seed & Đội hình khởi đầu]
+        ↓
+[Campaign Map (5 Floors): Chọn Node tiếp theo trên nhánh đường đi]
+        ↓
+[Pre-Battle / Planning Phase: Sắp xếp Formation + Chỉnh sửa AI Policy + Xem trạng thái]
+        ↓
+[Auto Combat Phase: AI hai phe tự giao chiến theo Speed Queue + Người chơi can thiệp Manual Skill]
+        ↓
+[Post-Battle Resolution: Nhận Reward (1 trong 3) -> Nâng cấp Chỉ số / Nhận Relic -> Hồi 25% HP]
+        ↓
+[Tiến tới Boss "The Warden" (3 Phases) -> Thắng / Thua -> Endless Mode / Run mới]
 ```
 
 ---
 
-## 3. HỆ THỐNG CHIẾN ĐẤU & ĐỘI HÌNH (BATTLE & FORMATION SYSTEM)
+## 2. HỆ THỐNG CHIẾN ĐẤU, TRÍ TUỆ NHÂN TẠO & ROGUELITE (GDD MỤC 7–59)
 
-### 3.1. Bố cục Chiến trường (Battlefield Formation Slots)
-Chiến trường gồm 2 phe đối diện nhau, mỗi phe có một lưới vị trí cố định chia làm 3 hàng (`FRONT`, `MID`, `BACK`), tối đa 6 ô (3x2 hoặc 3x3 tùy cấu hình, chuẩn MVP sử dụng 6 slot mỗi bên hoặc 3 hàng rõ rệt):
+### 2.1. Bố cục Chiến trường & Đội hình (Formation Grid)
+- Mỗi phe có một lưới vị trí cố định gồm 3 hàng (`Front`, `Mid`, `Back`) $\times$ 3 cột (`0, 1, 2`).
+- **Quy tắc bảo vệ hàng sau:** Đòn đánh cận chiến thông thường (`CanTargetBackline == false`) buộc phải tấn công hàng `Front` (hoặc hàng gần nhất còn sống) trước. Chỉ các kỹ năng tầm xa hoặc ám sát (`CanTargetBackline == true`) mới được nhắm thẳng vào `Mid`/`Back` khi `Front` còn sống.
+- **Cơ chế Đỡ đòn (`Interception`):** Khi `Guardian` kích hoạt kỹ năng bảo vệ đồng đội (`ProtectingAllyId`), mọi đòn đánh đơn mục tiêu nhắm vào đồng đội đó sẽ bị `Guardian` chặn lại và chịu sát thương thay (nếu `Guardian` còn sống và không bị `Stun`).
 
-```text
-                 PHE ĐỊCH (ENEMY)
-       Hàng Sau (Back):    [E4]   [E5]   [E6]
-       Hàng Trước (Front): [E1]   [E2]   [E3]
-       ====================================== (Ranh giới chiến tuyến)
-       Hàng Trước (Front): [P1]   [P2]   [P3]
-       Hàng Sau (Back):    [P4]   [P5]   [P6]
-                 PHE NGƯỜI CHƠI (PLAYER)
-```
-*(Lưu ý: Hệ thống hỗ trợ chia chi tiết thành 3 lớp vị trí logic `FRONT` - `MID` - `BACK` để tính tầm đánh và mức độ che chắn).*
+### 2.2. Cấu trúc 3 Pha của Lượt đấu (`TurnManager`)
+1. **Phase 1 — `Planning`:**
+   - Từ Turn 2 trở đi: Giảm `CurrentCooldown` đi 1 cho các kỹ năng đang hồi.
+   - Kích hoạt biến số môi trường đầu lượt (ví dụ: `Overcharge` cộng $+15\text{ Energy}$ cho mọi nhân vật còn sống).
+   - `SquadAI` của cả 2 phe đánh giá toàn cục chiến trường và cập nhật chiến thuật đội.
+   - Người chơi có thể thay đổi `UnitAIPolicy`, đổi vị trí `Formation` (trước trận/đầu trận), hoặc kích hoạt kỹ năng `Manual`.
+2. **Phase 2 — `AutoCombat`:**
+   - Các nhân vật còn sống của cả 2 phe được sắp xếp vào hàng đợi hành động (`TurnOrderQueue`) theo `Speed` giảm dần.
+   - Khi đến lượt: Xóa hiệu ứng đỡ đòn cũ của bản thân; nếu đang bị `Stun` thì bỏ qua lượt và xóa cờ `Stun`; nếu bình thường thì thực thi chu trình `UnitAI`: `Observe -> Evaluate Targets -> Evaluate Actions -> Execute`.
+3. **Phase 3 — `Resolution`:**
+   - Xử lý hiệu ứng cuối lượt: `AcidRain` (trừ $5\%\text{ MaxHP}$, giữ tối thiểu $1\text{ HP}$), `Regenerator` Affix (hồi $8\%\text{ MaxHP}$), cơ chế `Fatigue` từ Turn 15 trở đi (mỗi lượt trừ $(\text{CurrentTurn} - 14) \times 6\text{ HP}$ để chống kẹt trận đấu).
+   - Kiểm tra điều kiện kết thúc trận đấu (hoặc phân định thắng thua ở Turn 25). Nếu chưa kết thúc, tăng `CurrentTurn` và quay lại `Planning`.
 
-### 3.2. Ý nghĩa Chiến thuật của Formation
-Vị trí đứng ảnh hưởng trực tiếp đến công thức tính toán của AI và hệ thống chiến đấu:
-- **Khả năng bị nhắm mục tiêu (Targetability):** Các đòn cận chiến thông thường bị chặn bởi `FRONT` line, trừ khi kẻ địch có kỹ năng `Dive` / `Flank` hoặc đánh tầm xa (`Ranged`).
-- **Hiệu quả che chắn (Protection/Interception):** Tank đứng ở `FRONT` tăng điểm che chắn cho các unit đứng cùng cột ở `MID`/`BACK`.
-- **Phạm vi AoE:** Kỹ năng diện rộng có thể đánh theo hàng ngang (Row), cột dọc (Column), hoặc chữ thập (Cross).
-
-**Các mẫu Đội hình tiêu biểu:**
-- **Fortress Formation:** 2 Guardian + 1 Vanguard ở `FRONT`, Medic ở `MID`, Ranger + Mage ở `BACK` (Chắc chắn, kéo dài trận đấu).
-- **Assault Formation:** 2 Assassin + 1 Vanguard ở `FRONT`, Mage ở `MID`, Medic ở `BACK` (Dồn sát thương tốc độ cao, rủi ro lớn).
-- **Ranged Formation:** 1 Guardian ở `FRONT`, Vanguard + Mage ở `MID`, 2 Ranger + Medic ở `BACK` (Tối ưu hỏa lực tầm xa, phụ thuộc hoàn toàn vào 1 Tank duy nhất).
-
-### 3.3. Cấu trúc Một Lượt Đấu (Turn Structure & Initiative)
-Mỗi vòng đấu lớn (Round/Turn) được chia thành 3 giai đoạn rõ rệt:
-
-1. **Phase 1 — Planning (Lập kế hoạch đầu vòng):**
-   - Người chơi quan sát toàn bộ thông tin: `HP`, `Energy`, `Cooldown`, `Buff/Debuff`, `Intended Target` (mục tiêu dự kiến), `Squad Strategy` hiện tại.
-   - Người chơi có thể: Thay đổi chiến thuật chung (`Team Tactic`), điều chỉnh `AI Policy` của unit, chuyển chế độ kỹ năng (`Auto/Semi/Manual`), hoặc ra lệnh ưu tiên đánh dấu mục tiêu (`Manual Target Override`).
-2. **Phase 2 — Auto Combat (Thực thi theo Hàng đợi Tốc độ - Speed Queue):**
-   - *Bổ sung kỹ thuật:* Đầu Phase 2, các unit còn sống của cả 2 phe được sắp xếp vào một `TurnQueue` dựa trên chỉ số `Speed` giảm dần:
-     $$\text{Initiative} = \text{BaseSpeed} \times (1 + \text{SpeedModifiers})$$
-   - Khi đến lượt của một Unit trong hàng đợi, nếu unit không bị khống chế cứng (`Stun`/`Freeze`), nó sẽ chạy chu trình AI ngay tại thời điểm thực của `BattleState`:
-     `Observe` $\rightarrow$ `Evaluate Targets` $\rightarrow$ `Evaluate Actions` $\rightarrow$ `Execute Skill/Attack`.
-   - Người chơi có thể nhấn kích hoạt `Manual Ultimate` khi kỹ năng sẵn sàng.
-3. **Phase 3 — Battle Resolution (Giải quyết cuối vòng):**
-   - Cập nhật sát thương theo thời gian (`DoT` như Burn, Poison), hiệu ứng môi trường (`World Modifiers` như Acid Rain), giảm thời gian hồi chiêu (`Cooldown - 1`), giảm thời hạn `Buff/Debuff`, kiểm tra điều kiện Thắng/Thua (`Mission Objective`), và ghi nhận `Combat Log`.
+### 2.3. Kiến trúc AI 2 Tầng (`SquadAI` + `Utility AI`)
+1. **Tầng 1 — `SquadAI` (Chỉ huy Chiến thuật Vĩ mô & Thích nghi Giữa trận):**
+   - Các chiến thuật: `Balanced`, `DirectAssault`, `BacklineDive`, `FocusFire`, `ProtectBackline`, `Defensive`.
+   - **Thích nghi giữa trận (`Mid-Battle Adaptation`):** Khi sát thủ hàng sau (`BacklineDiver` có `CanTargetBackline && BaseThreat >= 40`) tử trận, phe địch tự động chuyển từ `BacklineDive` sang `DirectAssault`. Khi đồng minh hàng sau xuống dưới $55\%\text{ HP}$, phe người chơi tự động chuyển sang `ProtectBackline`.
+   - **Chống dao động (`Anti-Thrashing`):** Mỗi phe chỉ đổi chiến thuật tối đa 1 lần mỗi lượt (trừ khi có sự kiện nhân vật chủ chốt tử trận).
+2. **Tầng 2 — `TargetEvaluator` & `ActionEvaluator` (Chấm điểm Utility Bạch hộp):**
+   - **Công thức chấm điểm mục tiêu (`TargetScoreBreakdown`):**
+     $$\text{TotalScore} = \text{Threat} + \text{StrategicValue} + \text{KillProb} + \text{Vulnerability} + \text{RolePriority} + \text{SquadBonus} + \text{PolicyBonus} - \text{CounterRisk}$$
+   - **Công thức chấm điểm kỹ năng (`ActionScoreBreakdown`):**
+     $$\text{TotalScore} = \text{BaseUtility} + \text{TacticalFit} + \text{Urgency} + \text{PolicyBonus}$$
+   - Toàn bộ điểm thành phần được ghi vào `AIDecisionRecord` để hiển thị minh bạch trên bảng **F3 Explainable AI Debugger**.
 
 ---
 
-## 4. HỆ THỐNG TRÍ TUỆ NHÂN TẠO (CORE AI ARCHITECTURE)
-*Đây là trái tim của đồ án. AI hoạt động công bằng (không gian lận thông tin ẩn) và được chia làm 2 tầng: **Squad AI (Tầng Chỉ huy Đội)** và **Unit Utility AI (Tầng Thực thi Cá nhân)**.*
+## 3. TỔNG HỢP TIẾN ĐỘ ĐÃ HOÀN THÀNH (TUẦN 1 – TUẦN 4)
 
-### 4.1. Nhận thức của AI (AI Perception & Fair Play)
-AI chỉ được phép truy xuất dữ liệu công khai trong `BattleState`:
-- **Được biết (Known):** HP/Energy hiện tại của mọi unit, vị trí Formation, Role, các Buff/Debuff đang hiển thị, các kỹ năng đã lộ diện.
-- **Không được biết (Unknown):** Unit đang tàng hình (`Stealth/Hidden`), ý định kích hoạt `Manual Skill` sắp tới của người chơi, chỉ số ngẫu nhiên chưa quay (`RNG Roll`).
+Toàn bộ tầng **Core Logic, AI Engine, Roguelite Campaign, Data SO, Save/Load JSON và QA Automated Testing** đã hoàn thành **100%** với 19 file C# hiện có:
 
-### 4.2. Tầng 1: Squad AI (Rule-Based Strategy & Coordination)
-Đầu mỗi Turn (hoặc khi có sự kiện lớn như 1 unit tử trận), `SquadAI` của mỗi phe đánh giá toàn cục chiến trường và chọn một **Chiến lược Đội (`SquadStrategy`)**:
+### ✅ Tuần 1 (Milestone 1): Nền tảng Core Battle System (Pure C#)
+- Thiết lập kiến trúc 3 tầng `.asmdef` (`CrownlessWarband.Core`, `CrownlessWarband.Data`, `CrownlessWarband.Presentation`).
+- Hoàn thiện `BattleEnums.cs`, `SkillModel.cs`, `UnitState.cs`, `BattleState.cs`, `CombatEvent.cs`, `CombatResolver.cs`.
+- Đảm bảo quy tắc trừ `Shield` trước `HP`, cộng hưởng `Marked (+25%)`, `ExecuteDamage (+50% khi HP < 40%)`, `Guardian Interception` và quy tắc chặn đánh cận chiến hàng sau.
 
-- **Các Chiến lược của Phe Người Chơi (`Team Tactic`):**
-  - `Aggressive` (Tấn công dồn dập)
-  - `Defensive` (Phòng thủ an toàn)
-  - `Focus Fire` (Tập trung dồn sát thương 1 mục tiêu)
-  - `Control` (Ưu tiên khống chế diện rộng)
-  - `Survival` (Ưu tiên cứu sống đội hình khi nguy kịch)
-- **Các Chiến lược của Phe Địch (`Enemy Strategy`):**
-  - `Direct Assault`: Đánh thẳng vào tuyến đầu.
-  - `Backline Dive`: Bỏ qua Tank, dùng Assassin/Ranged lao vào giết DPS/Support hàng sau.
-  - `Focus Fire`: Cả đội hội đồng 1 mục tiêu yếu nhất hoặc nguy hiểm nhất.
-  - `Anti-Heal`: Ưu tiên triệt hạ hoặc khống chế Medic của người chơi.
-  - `Attrition`: Đánh cầm chừng, tích lũy giáp và sát thương theo thời gian.
+### ✅ Tuần 2 (Milestone 2): Bộ Điều phối Lượt, AI 2 Tầng & F3 Explainable Debugger
+- Hoàn thiện `TurnManager.cs`, `AIDecisionRecord.cs`, `TargetEvaluator.cs`, `ActionEvaluator.cs`, `SquadAI.cs`, `UnitAI.cs`.
+- Xây dựng giao diện thử nghiệm `BattleSandboxController.cs` và bảng giải thích tư duy AI `AIDebugOverlayUI.cs` (bật/tắt bằng phím `F3`).
+- Kiểm chứng thành công kịch bản mẫu 5v5 trong GDD Mục 53.
 
-**Cơ chế thích nghi giữa trận (Mid-Battle AI Adaptation):**
-`SquadAI` không dùng cố định 1 kịch bản. Ví dụ:
-- Turn 1: Địch chọn `Backline Dive` vì có Assassin.
-- Turn 2: Assassin địch bị giết $\rightarrow$ Điểm hiệu quả của `Backline Dive` tụt xuống mức `LOW` $\rightarrow$ `Enemy SquadAI` lập tức chuyển sang `Focus Frontline` để dồn sát thương phá giáp Guardian của người chơi.
+### ✅ Tuần 3 (Milestone 3): Vòng lặp Chiến dịch Roguelite, AI Policy, Relics & Save JSON
+- Hoàn thiện `UnitAIPolicy.cs` (cho phép người chơi chỉnh `BehaviorPreset`, `TargetPriorityRule`, `SkillConditionType`).
+- Hoàn thiện `RelicAndRewardModel.cs` (4 Di vật: `BloodContract`, `TacticalCore`, `EmergencyProtocol`, `ChainRelay` và các gói nâng cấp chỉ số).
+- Hoàn thiện `CampaignModel.cs`, `CampaignGenerator.cs` (sinh bản đồ 5 tầng phân nhánh cố định theo `Seed`) và `SaveSystem.cs` (lưu/nạp `crownless_run.save.json` bằng `Newtonsoft.Json`).
 
-**Cách `SquadAI` điều phối `UnitAI` (Cơ chế Directive Weights):**
-Thay vì ép cứng unit bằng lệnh `if-else`, `SquadAI` gắn các **Trọng số chỉ đạo (`SquadDirectiveBonus`)** lên các mục tiêu hoặc hành động.
-- *Ví dụ:* Khi `SquadAI` phát hiện Ranger phe ta đang bị đe dọa nghiêm trọng, nó phát lệnh `Protect Backline` và gán:
-  - Guardian nhận `+40 điểm` cho hành động `Protect/Taunt` lên kẻ đang nhắm vào Ranger.
-  - Mage nhận `+35 điểm` cho kỹ năng `Disable/Stun` lên Assassin địch.
-  - Medic nhận `+30 điểm` cho hành động `Heal` lên Ranger.
-
-### 4.3. Tầng 2: Unit AI (Utility Scoring System)
-Khi đến lượt hành động, mỗi unit thực hiện chấm điểm theo 2 bước:
-
-#### Bước A: Chấm điểm chọn Mục tiêu (Target Selection)
-Với mỗi mục tiêu hợp lệ $t$ trong tầm đánh, điểm số $S_{\text{target}}(t)$ được tính theo công thức tổng trọng số:
-
-$$S_{\text{target}}(t) = W_{\text{threat}} \cdot \text{Threat}(t) + W_{\text{strat}} \cdot \text{StrategicValue}(t) + W_{\text{kill}} \cdot \text{KillProb}(t) + W_{\text{vuln}} \cdot \text{Vulnerability}(t) + W_{\text{role}} \cdot \text{RolePriority}(t) + \text{PolicyBonus}(t) + \text{SquadBonus}(t) - W_{\text{risk}} \cdot \text{CounterRisk}(t)$$
-
-Trong đó:
-- $\text{Threat}(t)$: Mức độ nguy hiểm của mục tiêu (sát thương gây ra, kỹ năng sắp hồi).
-- $\text{StrategicValue}(t)$: Giá trị chiến lược (ví dụ: Y sĩ hồi máu hoặc mục tiêu nhiệm vụ `Elimination`).
-- $\text{KillProb}(t)$: Xác suất kết liễu mục tiêu ngay trong đòn đánh này (tăng vọt nếu $\text{Damage dự kiến} \ge \text{HP hiện tại}$).
-- $\text{Vulnerability}(t)$: Mức độ mỏng manh (đang bị `Marked`, giảm giáp, hoặc bị `Stun`).
-- $\text{PolicyBonus}(t)$: Điểm cộng từ cấu hình ưu tiên của người chơi (`Player-Configurable AI`).
-- $\text{SquadBonus}(t)$: Điểm cộng từ lệnh điều phối của `SquadAI`.
-- $\text{CounterRisk}(t)$: Rủi ro bị phản đòn (`Counter`) hoặc bị chặn đòn (`Intercept`).
-
-#### Bước B: Chấm điểm chọn Hành động / Kỹ năng (Action Selection)
-Với mỗi kỹ năng khả dụng $a$ (đủ `Energy`, `Cooldown == 0`, thỏa mãn điều kiện kích hoạt) trên mục tiêu tốt nhất:
-
-$$S_{\text{action}}(a, t) = \text{BaseUtility}(a) + \text{ExpectedImpact}(a, t) + \text{SynergyBonus}(a, t) + \text{BehaviorWeight}(a) + \text{PriorityOrderBonus}(a)$$
-
-- Hành động có $S_{\text{action}}$ cao nhất sẽ được chọn để thực thi.
-
-### 4.4. Thiết lập AI của Người chơi (Player-Configurable AI & Skill Modes)
-Người chơi cấu hình AI mà không cần viết code thông qua 3 công cụ:
-1. **Skill Mode (Chế độ kỹ năng):**
-   - `Auto`: AI tự tính điểm Utility và tự dùng.
-   - `Semi-Auto`: AI chỉ tự dùng khi thỏa mãn **Điều kiện (Condition)** do người chơi khóa cứng (ví dụ: Chỉ dùng `Snipe` khi `Target HP < 40%`).
-   - `Manual`: AI không bao giờ tự dùng; chờ người chơi nhấn nút kích hoạt và chỉ định mục tiêu.
-2. **Behavior Preset ( Khuynh hướng hành vi):** `Aggressive`, `Defensive`, `Support`, `Tactical`, `Balanced` (thay đổi bộ hệ số nhân $W$ trong công thức chấm điểm).
-3. **Target & Skill Priority List:** Danh sách thứ tự ưu tiên mục tiêu (ví dụ: `1. Marked -> 2. Lowest HP -> 3. Support -> 4. Nearest`) và thứ tự ưu tiên kỹ năng kèm điều kiện kích hoạt (`Use Heal if Ally HP < 50%`, `Use AoE if Enemies >= 3`).
+### ✅ Tuần 4 (Milestone 4 & QA Audit): Modifiers, Boss 3 Pha, Data SO, Batch Simulator & Kiểm thử QA
+- Bổ sung 4 `WorldModifierType` (`AcidRain`, `BloodMoon`, `Overcharge`, `NoHealing`) và 3 `EnemyAffixType` (`Armored`, `Berserker`, `Regenerator`).
+- Triển khai Boss 3 giai đoạn **The Warden** (`Phase 1` khiên dày $\rightarrow$ `Phase 2 <= 65% HP` kích hoạt *Formation Breaker* +60 Shield & 100 Energy tung *Earthshatter Sweep* $\rightarrow$ `Phase 3 <= 35% HP` kích hoạt *Berserk Overdrive* +15 ATK, +5 SPD, +35% DMG, ép đội địch sang `FocusFire`).
+- Tạo `SkillDataSO.cs` và `UnitDataSO.cs`.
+- Xây dựng `AIBatchSimulator.cs` (chạy 100 trận 5v5 trong $\sim 620\text{ ms}$) và `QAAndBalanceAuditor.cs` đạt `[PASS]` toàn bộ Invariants, Save/Load JSON và tỷ lệ thắng chuẩn ($74.0\%\text{ Win Rate}$).
 
 ---
 
-## 5. HỆ THỐNG NHÂN VẬT, BUILD & TƯƠNG TÁC (CHARACTERS & SYNERGIES)
+## 4. KẾ HOẠCH CHI TIẾT 5 TUẦN CÒN LẠI (TUẦN 5 – TUẦN 9)
 
-### 5.1. Năm Lớp Nhân Vật Cốt Lõi (MVP Classes)
-| Class | Vai trò (Role) | Vị trí chuẩn | Đặc trưng cơ chế & Kỹ năng |
-| :--- | :--- | :--- | :--- |
-| **Guardian** | Tank / Protection | `FRONT` | HP/Def cao, Khiêu khích (`Taunt`), Đỡ đòn hộ đồng đội (`Intercept`), Tạo khiên (`Shield`). |
-| **Vanguard** | Frontline / Control | `FRONT` / `MID` | Làm choáng (`Stun`), Đẩy lùi phá vỡ vị trí (`Formation Break`), Khống chế đám đông. |
-| **Ranger** | Single-target DPS | `BACK` | Tầm xa, Chí mạng cao, Đánh dấu mục tiêu (`Mark`), Kết liễu mục tiêu thấp máu (`Execute`). |
-| **Mage** | AoE / Control | `MID` / `BACK` | Sát thương diện rộng, Gây hiệu ứng xấu (`Burn`, `Weaken`), Kiểm soát vùng. |
-| **Medic** | Support / Healer | `BACK` | Hồi máu đơn/đa mục tiêu, Tăng chỉ số (`Buff`), Giải trừ hiệu ứng xấu (`Cleanse`). |
-
-Each unit sở hữu: `Basic Attack`, `Skill 1`, `Skill 2`, và `Ultimate`.
-
-### 5.2. Hệ thống Nâng cấp (Upgrades), Di vật (Relics) & Tương tác (Synergies)
-- **Skill Upgrades (Sau mỗi trận):** Thay đổi cơ chế kỹ năng (ví dụ: *Shield của Guardian kéo dài thêm +1 turn*, *Mục tiêu bị Marked nhận thêm +25% sát thương từ Ranger*).
-- **Relics (Di vật chiến thuật):** Tác động trực tiếp vào sự kiện trận đấu và hành vi AI:
-  - *Blood Contract:* $-10\%$ Max HP, $+30\%$ Critical Damage.
-  - *Tactical Core:* Mỗi khi `Squad AI` đổi chiến thuật giữa trận, toàn đội nhận $+10$ Energy.
-  - *Emergency Protocol:* Khi có đồng minh $<30\%$ HP, Medic tự động cộng điểm ưu tiên tuyệt đối cho đồng minh đó và tăng $+25\%$ lượng máu hồi.
-  - *Chain Relay:* Khi mục tiêu đang bị `Marked` tử trận, dấu ấn `Mark` tự động nhảy sang kẻ địch gần nhất.
-- **Combo Synergies (Tương tác trạng thái):**
-  - `Mark` + `Sniper Shot` $\rightarrow$ Sát thương chuẩn / Chí mạng 100%.
-  - `Burn` + `Poison` $\rightarrow$ Kích hoạt vụ nổ độc (`Toxic Explosion` gây sát thương lan).
-  - `Stun` + `Heavy Hit` $\rightarrow$ Tăng $+50\%$ sát thương lên mục tiêu đang choáng.
-  - `Shield` + `Counter Stance` $\rightarrow$ Phản đòn ngay khi khiên bị tấn công.
+Mục tiêu của 5 tuần cuối là chuyển hóa toàn bộ phần lõi Pure C# đã hoàn chỉnh thành một **trò chơi 2D trực quan, sinh động trên Unity**, bổ sung đầy đủ các tính năng **Must Have / Should Have / Could Have** trong GDD và đóng gói bản dựng `.exe` sẵn sàng bảo vệ đồ án.
 
 ---
 
-## 6. HỆ THỐNG SINH TỰ ĐỘNG, ĐỘ KHÓ & ENEMY (PROCEDURAL & PROGRESSION)
+### 📅 TUẦN 5 (Milestone 5): Trực quan hóa Sàn đấu 2D, Đội hình $3 \times 3$ & Tương tác Xếp vị trí
+**Mục tiêu:** Thay thế cảm giác "chơi trên bảng chữ" bằng một **Sàn đấu 2D (Battlefield Scene View)** nằm ở trung tâm màn hình, hiển thị trực quan 2 lưới đội hình $3 \times 3$, nhân vật 2D, thanh máu/giáp/năng lượng, icon trạng thái và cho phép đổi vị trí đứng (`Formation`) trước khi vào pha giao chiến.
 
-### 6.1. Procedural Generation theo Seed
-Mỗi Run khởi tạo bằng một số nguyên `Seed` (ví dụ: `847291`). Mọi hàm sinh ngẫu nhiên (Bản đồ nhánh, Đội hình địch, Phần thưởng, Sự kiện) đều phải truyền qua bộ sinh số giả ngẫu nhiên có kiểm soát (`System.Random(seed)`) để đảm bảo **cùng một Seed sẽ tái tạo chính xác 100% cùng một Run**.
+#### 🤖 Phần việc do AI Coding Agent thực hiện (Code C#):
+1. **`FormationSlotView.cs` (`CrownlessWarband.Presentation.BattleView`):**
+   - Hiển thị từng ô đứng `(TeamSide, RowType, Column)` trên không gian 2D (`SpriteRenderer` hoặc World UI).
+   - Đổi màu viền ô theo hàng (`Front`: Đỏ/Cam, `Mid`: Vàng, `Back`: Xanh) và sáng lên khi người chơi chọn đổi vị trí nhân vật hoặc chọn mục tiêu kỹ năng `Manual`.
+2. **`UnitVisualView.cs` (`CrownlessWarband.Presentation.BattleView`):**
+   - Gắn với một `UnitState` cụ thể; tự động dựng Sprite nhân vật theo `UnitRole` & `TeamSide`, vẽ thanh `HP Bar` (xanh/đỏ), `Shield Bar` (xanh dương), `Energy Bar` (vàng) và các nhãn trạng thái nổi bật (`[STUN]`, `[MARK]`, `[PROTECT]`, `[PHASE 2/3]`, `[AFFIX]`).
+   - Hỗ trợ sự kiện click chuột vào nhân vật trên sàn đấu 2D để:
+     - Chọn xem ngay bảng phân tích điểm số của nhân vật đó trên **F3 AI Debug Inspector**.
+     - Chọn nhân vật để đổi ô đứng (`Formation Swap`) trong pha `Planning` (Turn 1).
+3. **`BattlefieldGridView.cs` (`CrownlessWarband.Presentation.BattleView`):**
+   - Quản lý toàn bộ 18 ô lưới ($9$ ô Player bên trái, $9$ ô Enemy bên phải) và đồng bộ vị trí của mọi `UnitVisualView` theo `BattleSandboxController.CurrentState`.
+   - Tự động khởi tạo (procedural fallback) các GameObject/SpriteRenderer 2D ngay bằng code nếu người dùng chưa kéo thả Prefab thủ công, đảm bảo bấm Play là thấy ngay sàn đấu 2D.
+4. **Cập nhật nhẹ `BattleSandboxController.cs`:**
+   - Thu gọn chiều rộng bảng điều khiển bên trái để nhường không gian chính giữa màn hình cho **Sàn đấu 2D** (Bố cục 3 cột chuẩn: *Trái: Điều khiển & Log* — *Giữa: Sàn đấu 2D* — *Phải: Bảng F3 AI Debug*).
 
-### 6.2. Hệ thống Kẻ địch Hướng dữ liệu (Data-Driven Enemies & Affixes)
-Một mẫu kẻ địch gốc (`EnemyData`) kết hợp với các tiền tố biến thể (`EnemyAffix`) để nhân bản nội dung nhanh chóng:
-- `Soldier` (Gốc) $\rightarrow$ `Armored Soldier` (Có giáp đầu trận), `Fast Soldier` (Tăng mạnh Speed), `Berserker Soldier` (Càng mất máu đánh càng đau), `Regenerator Soldier` (Tự hồi máu cuối turn).
-
-### 6.3. Hệ thống Khu vực (Biomes), Biến số Môi trường (World Modifiers) & Nhiệm vụ
-- **3 Biomes:** Thành phố đổ nát (Urban/Scavenger), Khu công nghiệp (Machine/Explosive Hazard), Khu thí nghiệm (Mutant/Status Effects).
-- **World Modifiers:** `Blackout` (Giảm tầm nhìn/chính xác), `Acid Rain` (Cuối turn toàn trường mất máu), `Blood Moon` (Địch tăng sát thương nhưng rơi thưởng xịn hơn), `No Healing` (Giảm 75% hiệu quả hồi máu), `Overcharge` (Hồi năng lượng nhanh gấp đôi), `Reinforcement` (Địch tiếp viện sau Turn X).
-- **Loại Nhiệm vụ (Mission Objectives):**
-  - *MVP Priority:* `Assault` (Tiêu diệt toàn bộ địch), `Survival` (Sống sót qua $X$ lượt), `Elimination` (Hạ gục 1 mục tiêu chỉ định).
-  - *Mở rộng:* `Defense` (Bảo vệ mục tiêu tĩnh), `Escort`, `Extraction`.
-
-### 6.4. Hệ thống Đe dọa (Threat), Tha hóa (Corruption) & Boss
-- **Threat & Corruption (0% $\rightarrow$ 100%):** Càng tiến sâu hoặc chọn nhánh nguy hiểm, độ Tha hóa càng tăng, mở khóa thêm `Enemy Mutation`, `Modifiers` khắc nghiệt hơn nhưng phần thưởng giá trị cao hơn.
-- **Boss Đa giai đoạn (Multi-Phase Boss):** Ví dụ *The Warden*:
-  - *Phase 1 (100% - 60% HP):* Triệu hồi lính canh che chắn hàng trước.
-  - *Phase 2 (60% - 25% HP):* Dùng kỹ năng quét phá vỡ Formation của người chơi, buộc AI phải thích nghi lại vị trí.
-  - *Phase 3 (<25% HP):* Chuyển AI sang trạng thái `Enraged Burst`, ưu tiên dồn sát thương mục tiêu thấp máu nhất.
-
----
-
-## 7. GIAO DIỆN, CÔNG CỤ DEBUG AI (F3) & LƯU TRỮ
-
-### 7.1. AI Debug Mode (Phím tắt F3 — Tính năng Bắt buộc để Bảo vệ Đồ án)
-Khi nhấn `F3` trong trận đấu, một lớp phủ (Overlay Panel) hiển thị trực tiếp tư duy của AI:
-```text
-================ AI DEBUG INSPECTOR (F3) ================
-[Selected Unit]: Guardian (Player Front-1) | Role: Protector
-[Player Squad Strategy]: PROTECT BACKLINE (Triggered: Ranger Threat High)
-
---- Target Evaluation Breakdown ---
-1. Enemy Assassin : Total = 82 (Threat: 35 + Strat: 15 + SquadBonus: 32)
-2. Enemy Mage     : Total = 61 (Threat: 30 + Strat: 20 + Vuln: 11)
-3. Enemy Tank     : Total = 34 (Threat: 10 + Strat: 10 + Nearest: 14)
-
---- Action Evaluation Breakdown ---
--> [CHOSEN] Protect Ranger : Score = 91 (Base: 40 + EmergencyBonus: 51)
-   Shield Bash (Assassin)  : Score = 74 (Base: 50 + StunSynergy: 24)
-   Basic Attack (Tank)     : Score = 28
-
-[Enemy Squad Strategy]: BACKLINE DIVE -> Switching to FOCUS FRONTLINE
-=========================================================
-```
-
-### 7.2. Combat Log (Nhật ký Giải thích Quyết định)
-Ghi lại không chỉ kết quả sát thương mà cả **lý do AI ra quyết định**:
-> `[Turn 4] Medic đánh giá: Guardian HP (31%) < Ngưỡng khẩn cấp (50%) -> Quyết định: Dùng Emergency Heal lên Guardian (+140 HP).`
+#### 🛠️ Phần việc BẠN cần thao tác trên Unity Editor (Tuần 5):
+1. Mở scene chính (`Assets/_Project/Scenes/MainScene.unity` hoặc scene hiện tại bạn đang dùng).
+2. Chọn `Main Camera` trong Hierarchy:
+   - Chuyển `Projection` sang **Orthographic**, đặt `Size = 5.5`, `Position = (0, 0, -10)`.
+   - Chỉnh màu nền `Background` sang tông tối chiến thuật (ví dụ: `#161A22`).
+3. Tạo một Empty GameObject tên là `BattlefieldVisualizer` trong Hierarchy, gắn script `BattlefieldGridView` vào và kéo thả tham chiếu `BattleSandboxController` vào ô tương ứng trên Inspector.
+4. *(Tùy chọn nâng cao thẩm mỹ)* Nếu bạn có bộ ảnh Sprite 2D riêng cho 5 Class (`Guardian`, `Vanguard`, `Ranger`, `Mage`, `Medic`) và Boss `The Warden`, kéo thả chúng vào danh sách `RoleSprites` trên Inspector của `BattlefieldGridView` (nếu để trống, code sẽ tự sinh hình khối 2D sắc nét theo màu Role).
 
 ---
 
-## 8. KIẾN TRÚC KỸ THUẬT & QUY ƯỚC CODE UNITY C# (TECHNICAL SPECIFICATION)
-*Phần này được bổ sung để định hướng cấu trúc code chuẩn mực cho lập trình viên và AI Assistant.*
+### 📅 TUẦN 6 (Milestone 6): Diễn hoạt Chiến đấu Thời gian thực với DOTween & Floating Combat Text
+**Mục tiêu:** Giải quyết bài toán quan trọng nhất của GDD Mục 10 & Mục 43: Biến hàng đợi `BattleState.EventQueue` (`Queue<CombatEvent>`) thành chuỗi diễn hoạt chiến đấu tuần tự theo thời gian thực bằng thư viện **DOTween**, giúp người xem nhìn rõ từng đòn đánh, pha đỡ đòn của Guardian, hiệu ứng Stun/Mark và sự kiện đổi chiến thuật của `SquadAI`.
 
-### 8.1. Cấu trúc Thư mục Dự án (`Assets/_Project`)
-```text
-Assets/_Project/
-├── Scripts/
-│   ├── Core/                  # Pure C# Battle Simulation (KHÔNG phụ thuộc MonoBehaviour)
-│   │   ├── State/             # BattleState, UnitState, FormationGrid, StatusEffectState
-│   │   ├── Rules/             # TurnManager, DamageCalculator, SkillExecutor, SynergyResolver
-│   │   ├── Events/            # CombatEvent, CombatEventQueue, BattleEventBus (Observer)
-│   │   └── AI/                # SquadAI, UnitAI, TargetEvaluator, ActionEvaluator, ScoreBreakdown
-│   ├── Data/                  # ScriptableObject Definitions
-│   │   ├── Characters/        # CharacterDataSO,EnemyDataSO, EnemyAffixSO
-│   │   ├── Skills/            # SkillDataSO, SkillEffectSO, UpgradeDataSO
-│   │   ├── AI/                # AIConsiderationSO, AIPresetSO, SquadStrategySO
-│   │   └── Roguelite/         # RelicDataSO, BiomeDataSO, WorldModifierSO, EventDataSO
-│   ├── Presentation/          # Unity MonoBehaviour Views (Đọc CombatEventQueue để hiển thị)
-│   │   ├── BattleView/        # BattleVisualizer, UnitView, FloatingText, FormationSlotView
-│   │   ├── UI/                # BattleHUD, AIPolicyConfigUI, CombatLogUI, AIDebugOverlayUI (F3)
-│   │   └── CampaignView/      # CampaignMapUI, NodeView, RewardSelectionUI
-│   └── Systems/               # SaveLoadManager, SeedManager, GameFlowController
-└── ScriptableObjects/         # Các file tài nguyên .asset thực tế
-```
+#### 🤖 Phần việc do AI Coding Agent thực hiện (Code C#):
+1. **`FloatingTextView.cs` (`CrownlessWarband.Presentation.UI`):**
+   - Hiển thị chữ nổi bay lên tại vị trí nhân vật khi có sự kiện: Sát thương (`-45` màu đỏ/cam), Chí mạng/Execute (`-78!` phóng to), Hồi máu (`+52` màu xanh lá), Tạo khiên (`+60 SHIELD` màu xanh lam), Khống chế (`STUNNED!` / `MARKED!`) và Đổi chiến thuật đội (`[SQUAD: PROTECT BACKLINE!]`).
+   - Sử dụng `DOTween` (`DOMoveY`, `DOFade`, `DOPunchScale`) và cơ chế **Object Pool** (tái sử dụng đối tượng, không gọi `Instantiate`/`Destroy` liên tục trong trận).
+2. **`CombatEventPresenter.cs` (`CrownlessWarband.Presentation.BattleView`):**
+   - Đọc tuần tự từng `CombatEvent` từ `BattleState.EventQueue` thông qua Coroutine điều khiển nhịp độ.
+   - Hỗ trợ 4 chế độ tốc độ diễn hoạt: **`1x` (Chuẩn để thuyết trình giải thích AI)**, **`2x` (Nhanh)**, **`4x` (Siêu tốc)** và **`Instant` (Chạy tức thì)**.
+   - Kích hoạt diễn hoạt `DOTween` tương ứng trên `UnitVisualView`:
+     - `UnitTurnStarted`: Sáng vòng chân nhân vật đang tới lượt và tự động focus nhân vật đó lên bảng `F3 AI Debug`.
+     - `SkillUsed`: Nhân vật lao nhẹ về phía mục tiêu (`DOPunchPosition`), hiển thị tên kỹ năng.
+     - `InterceptionTriggered`: `Guardian` trượt nhanh ra chắn trước mặt đồng đội đang được bảo vệ (`DOMove` tới vị trí chắn đòn rồi quay về).
+     - `DamageDealt`: Mục tiêu rung lắc (`DOShakePosition`), nháy đỏ và cập nhật thanh HP/Shield mượt mà.
+     - `UnitDied`: Nhân vật mờ dần (`DOFade`) và đổi trạng thái gục ngã.
+3. **Cập nhật `CrownlessWarband.Presentation.asmdef` & `BattleSandboxController.cs`:**
+   - Thêm nút chọn tốc độ `Playback Speed: [1x] [2x] [4x] [Instant]` và nút `[Pause / Step Next Event]` để bạn có thể **dừng hình ngay giữa lượt** khi đang thuyết trình trước Hội đồng.
 
-### 8.2. Mẫu thiết kế Bắt buộc (Core Design Patterns)
-1. **Command / Event Queue (Tách Logic và Animation):**
-   - Khi `SkillExecutor` xử lý một kỹ năng trong `BattleState`, nó tạo ra các đối tượng `CombatEvent` (ví dụ: `SkillUsedEvent`, `DamageDealtEvent`, `StatusAppliedEvent`, `AIDecisionLoggedEvent`) và đẩy vào `CombatEventQueue`.
-   - `BattleVisualizer` (MonoBehaviour) duyệt qua hàng đợi này bằng Coroutine/UniTask để chạy hiệu ứng hình ảnh tuần tự theo tốc độ trận đấu (`1x`, `2x`, hoặc `Skip`).
-2. **Pluggable Utility AI với `ScriptableObject` & `AnimationCurve`:**
-   - Mỗi yếu tố chấm điểm kế thừa từ lớp cơ sở `AIConsiderationSO`, sử dụng `AnimationCurve` của Unity để chuẩn hóa giá trị đầu vào (ví dụ: `% HP còn lại`) thành điểm số từ $[0, 100]$.
-   - Luôn trả về cấu trúc `EvaluationResult { float score; string reason; }` để phục vụ trực tiếp cho bảng `F3 Debug`.
-3. **Event Bus cho Relics & Modifiers (`BattleEventBus`):**
-   - Các Relic và World Modifier đăng ký lắng nghe các sự kiện (`OnTurnStart`, `OnBeforeDamage`, `OnUnitKilled`, `OnStrategyChanged`, `OnModifyTargetScore`) thay vì viết `if (HasRelic("X"))` rải rác trong code lõi.
-4. **Tuần tự hóa Trạng thái (`JSON Serialization`):**
-   - `BattleState` và `RunState` phải có khả năng chuyển đổi sang JSON chỉ bằng 1 lệnh để phục vụ: Save/Load giữa chừng, Chạy giả lập 1.000 trận kiểm thử tự động (Headless Simulation), và Tạo kịch bản Demo tức thời (Sandbox Mode).
+#### 🛠️ Phần việc BẠN cần thao tác trên Unity Editor (Tuần 6):
+1. Kiểm tra cài đặt **DOTween**:
+   - Trên thanh menu Unity, vào `Tools -> Demigiant -> DOTween Utility Panel` $\rightarrow$ bấm **Setup DOTween...** $\rightarrow$ bấm **Apply** để Unity tạo các file Assembly Definition của DOTween.
+   - Click vào file `Assets/_Project/Scripts/Presentation/CrownlessWarband.Presentation.asmdef` trong cửa sổ Project, tại mục **Assembly Definition References**, kiểm tra đã có `DOTween.Modules` (nếu Agent chưa thêm hoặc Unity yêu cầu Apply).
+2. Trong `MainScene`, gắn component `CombatEventPresenter` vào GameObject `BattlefieldVisualizer` và kéo tham chiếu `BattlefieldGridView` + `BattleSandboxController` vào Inspector.
+3. Bấm **Play**, nhấn `SPACE` ở tốc độ `1x` để kiểm tra hiệu ứng nhân vật lao lên đánh, Guardian nhảy ra đỡ đòn và chữ sát thương bay lên.
 
 ---
 
-## 9. LỘ TRÌNH PHÁT TRIỂN & PHẠM VI ĐỒ ÁN (ROADMAP & SCOPE)
+### 📅 TUẦN 7 (Milestone 7): Hoàn thiện Chiều sâu GDD (Mission Objectives, Biomes, Skill Modes & Data-Driven SO)
+**Mục tiêu:** Lấp đầy toàn bộ các yêu cầu **Must Have & Should Have** còn lại trong GDD (Mục 13, 30, 32, 37, 47) để hệ thống chiến dịch và AI đa dạng đúng chuẩn thiết kế.
 
-### 9.1. Thứ tự Ưu tiên Triển khai (15 Bước Phát triển)
-```text
-[Giai đoạn 1: Hộp cát Chiến đấu Cốt lõi]
-1. BattleState (Pure C#) -> 2. TurnManager (Speed Queue) -> 3. Unit & Formation Slot -> 4. Basic Combat & Status -> 5. Skill System & Event Queue
+#### 🤖 Phần việc do AI Coding Agent thực hiện (Code C#):
+1. **Mở rộng 3 Loại Nhiệm vụ (`MissionType` — GDD Mục 37) & 3 Khu vực (`BiomeType` — GDD Mục 32):**
+   - Cập nhật `BattleEnums.cs`, `BattleState.cs` và `TurnManager.cs` hỗ trợ 3 loại nhiệm vụ chiến đấu:
+     1. `Assault`: Tiêu diệt toàn bộ kẻ địch (mặc định).
+     2. `Survival`: Sống sót qua $N$ lượt (ví dụ: trụ vững 6 lượt trước đợt tấn công dữ dội của địch là Thắng).
+     3. `Elimination`: Hạ gục 1 mục tiêu Chỉ huy (`IsPriorityObjective = true`) của địch để lập tức giành chiến thắng mà không cần diệt hết lính phụ.
+   - Cập nhật `TargetEvaluator.cs` & `SquadAI.cs`:
+     - Khi nhiệm vụ là `Elimination`, AI tự động cộng trọng số `StrategicValue` lớn lên mục tiêu VIP của địch.
+     - Khi nhiệm vụ là `Survival`, `SquadAI` ưu tiên chuyển sang `Defensive` / `ProtectBackline` khi máu đồng minh giảm để câu giờ chiến thắng.
+   - Bổ sung 3 `BiomeType` (`RuinedCity` - Thành phố đổ nát, `IndustrialZone` - Khu công nghiệp, `LabComplex` - Khu thí nghiệm) vào `CampaignModel.cs` & `CampaignGenerator.cs`, kèm lựa chọn `Shop / Event` đa dạng hơn.
+2. **Hoàn thiện Chế độ Kỹ năng (`Auto` / `SemiAuto` / `Manual` — GDD Mục 13):**
+   - Cho phép người chơi click đổi trực tiếp chế độ `Auto` $\leftrightarrow$ `SemiAuto` $\leftrightarrow$ `Manual` của từng kỹ năng đặc biệt (`Skill1`, `Ultimate`) trên bảng điều khiển, và cho phép chọn mục tiêu chỉ định khi kích hoạt kỹ năng `Manual` trong pha `Planning`.
+3. **Hoàn thiện Hệ thống `ScriptableObject` (`ContentDatabaseSO.cs` & Editor Menu):**
+   - Tạo `ContentDatabaseSO.cs` trong `CrownlessWarband.Data` và một script tiện ích trong `Editor` giúp tự động sinh ra các file `.asset` mẫu (`Guardian_SO`, `Vanguard_SO`, `Ranger_SO`, `Mage_SO`, `Medic_SO`, `TheWarden_SO` và bộ kỹ năng) chỉ bằng 1 cú click menu trên Unity Editor.
 
-[Giai đoạn 2: Bộ não Trí tuệ Nhân tạo & Công cụ Giải thích]
-6. AI Debug UI (F3) & Combat Log -> 7. Player Unit Utility AI -> 8. Enemy AI -> 9. Squad AI & Mid-Battle Adaptation -> 10. Player AI Config UI & Manual Skill
+#### 🛠️ Phần việc BẠN cần thao tác trên Unity Editor (Tuần 7):
+1. Trên thanh menu Unity Editor, bấm vào menu tự động (do Agent tạo): `Tools -> Crownless Warband -> Generate Default ScriptableObject Assets`.
+   - Kiểm tra thư mục `Assets/_Project/ScriptableObjects/` sẽ xuất hiện đầy đủ các file `.asset` của Nhân vật, Quái, Boss và Kỹ năng (rất quan trọng để mở lên trình diễn tính chất **Data-Driven Architecture** khi thầy cô hỏi).
+2. Kéo file `DefaultContentDatabase.asset` vào ô `Content Database` trên Inspector của `BattleSandboxController`.
+3. Chạy thử 1 Run trên Campaign Map qua các node có nhiệm vụ `Survival` và `Elimination` để quan sát AI tự thay đổi mục tiêu ưu tiên.
 
-[Giai đoạn 3: Vòng lặp Roguelite & Sinh tự động]
-11. Roguelite Upgrades & Relics (Event Bus) -> 12. Campaign Node Map -> 13. Seed-based Procedural Generation -> 14. Multi-Phase Boss
+---
 
-[Giai đoạn 4: Hoàn thiện & Kịch bản Bảo vệ Đồ án]
-15. Save/Load + Sandbox Test Scenarios (Phím tắt nạp nhanh kịch bản chứng minh AI thông minh trước Hội đồng)
-```
+### 📅 TUẦN 8 (Milestone 8): Âm thanh (SFX), Endless Mode, Player Behavior Profile & Đánh bóng UI/UX
+**Mục tiêu:** Bổ sung các tính năng điểm cộng nâng cao (**Could Have** trong GDD Mục 40, 41, 43) và hoàn thiện hiệu ứng âm thanh, thanh thứ tự lượt đi (`Turn Order Bar`) để trải nghiệm game tròn trịa, chuyên nghiệp.
 
-### 9.2. Phân loại Phạm vi (MoSCoW Scope)
-- **MUST HAVE (Bắt buộc có trong MVP):**
-  - Turn-based auto battle trên Formation Slot cố định.
-  - 4–5 Class nhân vật, 6 mẫu Enemy + Affixes, 1–2 Boss nhiều phase.
-  - Kỹ năng 3 chế độ (`Auto` / `Semi-auto` / `Manual`).
-  - Hệ thống `Utility AI` (Target & Action Evaluation) + `Squad AI` (2 phe) + `AI Adaptation` giữa trận.
-  - Bảng cấu hình `Player AI Policy`.
-  - Công cụ `AI Debug Mode (F3)` và `Combat Log` giải thích quyết định.
-  - Bản đồ Campaign, chọn Reward/Upgrade/Relic (15–20 loại), và Save/Load cơ bản.
-- **SHOULD HAVE (Nên có):**
-  - 3 loại Mission Objectives (`Assault`, `Survival`, `Elimination`).
-  - 3–4 World Modifiers tác động lên chiến trường.
-  - Hệ thống Threat / Corruption tăng dần theo tầng.
-- **COULD HAVE (Mở rộng nếu còn thời gian):**
-  - Adaptive Difficulty & Player Behavior Modeling (Phân tích thói quen người chơi để sinh đội hình khắc chế).
-  - Endless Mode, Daily Seed, tính năng Replay trận đấu.
-- **WON'T HAVE (Tuyệt đối KHÔNG làm trong bản đầu):**
-  - Multiplayer / PvP / Online Server.
-  - Đồ họa 3D hoặc hệ thống di chuyển tự do / tìm đường (Pathfinding) trong trận.
-  - Dùng Machine Learning hộp đen làm core AI chiến đấu.
+#### 🤖 Phần việc do AI Coding Agent thực hiện (Code C#):
+1. **Hệ thống Âm thanh Tự chủ (`BattleAudioManager.cs` — `CrownlessWarband.Presentation.BattleView`):**
+   - Phát âm thanh phản hồi cho mọi sự kiện chiến đấu: Đòn đánh thường, Kỹ năng đặc biệt, Chí mạng/Execute, Tạo khiên, Hồi máu, Làm choáng (`Stun`), Guardian đỡ đòn (`Intercept`), Boss chuyển Phase và Chiến thắng/Thất bại.
+   - **Tích hợp bộ tổng hợp âm thanh Procedural (Retro/Tactical Synth AudioClip):** Tự động tạo sóng âm `AudioClip` ngay trong bộ nhớ nếu bạn chưa gắn file `.wav`/`.mp3` bên ngoài, giúp game **có âm thanh chiến đấu sống động ngay lập tức 100%** mà không lo thiếu asset.
+2. **Endless Mode & Hồ sơ Hành vi Người chơi (`PlayerBehaviorProfile.cs` — GDD Mục 40 & 41):**
+   - Sau khi đánh bại Boss *The Warden* ở Tầng 4, mở nút **`[Enter Endless Mode (Floor 5+)]`** sinh các tầng tiếp theo với `Threat` và `Corruption` tăng dần cùng tổ hợp nhiều `EnemyAffix`.
+   - Ghi nhận thống kê phong cách chỉ huy của người chơi (`PlayerBehaviorProfile`: Tỷ lệ dùng Ranged/AoE, số lần can thiệp `Manual Skill`, khuynh hướng chọn `BehaviorPreset`, thời lượng trận trung bình) và tích hợp cơ chế **Adaptive Encounter** (nếu người chơi lạm dụng Ranged DPS $>70\%$, các tầng sau tự động tăng tỷ lệ xuất hiện `Assassin/Diver` của địch).
+3. **Nâng cấp Thanh Thứ tự Tốc độ (`TurnOrderBarUI`) & Bố cục HUD:**
+   - Hiển thị thanh ngang phía trên sàn đấu 2D liệt kê thứ tự hành động của các nhân vật trong lượt theo `Speed` (`Initiative Queue`), giúp người chơi dễ dàng quyết định thời điểm can thiệp.
+
+#### 🛠️ Phần việc BẠN cần thao tác trên Unity Editor (Tuần 8):
+1. Trong cửa sổ **Game View** của Unity, chuyển độ phân giải từ `Free Aspect` sang **`Full HD (1920x1080)`** để cố định tỷ lệ khung hình chuẩn khi demo và quay video.
+2. Thêm một GameObject `AudioManager` vào `MainScene`, gắn script `BattleAudioManager` (và tùy chọn kéo thả các file nhạc nền/SFX `.wav` của bạn vào Inspector nếu muốn thay thế âm thanh synth mặc định).
+3. Chơi thử qua Tầng 4 và bấm vào **Endless Mode** để kiểm tra độ mượt của giao diện.
+
+---
+
+### 📅 TUẦN 9 (Milestone 9): Hệ thống Phím tắt Demo Bảo vệ Đồ án (F1–F8), Kiểm thử QA Cuối & Đóng gói `.exe`
+**Mục tiêu:** Đảm bảo buổi bảo vệ đồ án diễn ra hoàn hảo: Chỉ cần bấm 1 phím tắt là tái hiện ngay lập tức bất kỳ kịch bản AI nào mà Hội đồng chấm thi yêu cầu, vượt qua 100% bài test tự động và xuất file thực thi `.exe`.
+
+#### 🤖 Phần việc do AI Coding Agent thực hiện (Code C#):
+1. **Bộ Phím tắt Kịch bản Bảo vệ Đồ án (`DemoScenarioController` tích hợp trong `BattleSandboxController`):**
+   - Thiết lập dãy phím tắt nạp nhanh kịch bản chứng minh AI ngay lập tức:
+     - **`F1` — Kịch bản Chuẩn GDD Mục 53 (5v5 Classic):** Tái hiện chính xác pha `Enemy Assassin` lao vào `Ranger` $\rightarrow$ `Player SquadAI` bật `ProtectBackline` $\rightarrow$ `Guardian` nhảy ra chắn đòn, `Mage` Stun Assassin, `Medic` hồi máu.
+     - **`F2` — Chứng minh Enemy AI Adaptation:** Nạp trận đấu đang ở chiến thuật `BacklineDive`, hạ gục Assassin địch để chứng minh `Enemy SquadAI` lập tức chuyển sang `DirectAssault` dồn sát thương vào `Guardian`.
+     - **`F3` — Bật/Tắt Explainable AI Debugger:** Hiển thị bảng công thức chấm điểm `TargetScoreBreakdown` và `ActionScoreBreakdown` chi tiết từng con số.
+     - **`F4` — Chứng minh Sức mạnh của Player AI Policy:** So sánh trực tiếp cùng 1 đội hình nhưng khi đổi Policy của `Ranger` và `Medic` thì chuyển từ thua sang thắng áp đảo.
+     - **`F5` — Kịch bản Boss 3 Pha (*The Warden*):** Đưa máu Boss xuống sát ngưỡng $65\%$ và $35\%$ để trình diễn trực tiếp hiệu ứng chuyển Phase (*Formation Breaker* & *Berserk Overdrive*).
+     - **`F6` — Kịch bản Nhiệm vụ `Elimination` & `Survival` + World Modifiers.**
+     - **`F7` — Mở nhanh Headless AI Batch Simulator & QA Audit:** Chạy 100 trận đấu trong $\sim 0.6\text{ giây}$ và xuất báo cáo `[PASS]` toàn diện.
+2. **Chạy rà soát `QAAndBalanceAuditor.cs` lần cuối:**
+   - Kiểm tra toàn bộ bất biến trạng thái cho cả các tính năng mới (`Survival`, `Elimination`, `Endless Mode`), đảm bảo 0 lỗi biên dịch, 0 cảnh báo `NullReferenceException` và tốc độ giả lập giữ vững $< 10\text{ ms/trận}$.
+
+#### 🛠️ Phần việc BẠN cần thao tác trên Unity Editor (Tuần 9):
+1. **Kiểm tra QA tự động trên Editor:**
+   - Bấm Play trong Unity, chuyển sang tab `[3] AI Batch Simulator` (hoặc bấm `F7`) $\rightarrow$ bấm **`[RUN FULL QA & BALANCE AUDIT]`** và chụp màn hình kết quả `[PASS]` đưa vào báo cáo quyển đồ án.
+2. **Đóng gói Bản dựng Windows PC (`.exe`):**
+   - Vào menu `File -> Build Settings...`
+   - Bấm **Add Open Scenes** để đưa `MainScene` vào danh sách build.
+   - Chọn Target Platform là **Windows, Mac, Linux** (Architecture: `Intel 64-bit` / `x86_64`).
+   - Bấm vào **Player Settings...**:
+     - `Company Name`: `HUST_20225138`
+     - `Product Name`: `The Crownless Warband`
+     - `Fullscreen Mode`: `Fullscreen Window` (Độ phân giải mặc định `1920 x 1080`, bật `Resizable Window`).
+   - Quay lại cửa sổ Build Settings, bấm **Build**, chọn thư mục `D:\The_Crownless_Warband\Builds\TheCrownlessWarband.exe`.
+3. **Chạy thử bản `.exe` độc lập & Quay video dự phòng:**
+   - Mở trực tiếp file `TheCrownlessWarband.exe` ngoài màn hình Desktop, bấm thử lần lượt các phím `F1` $\rightarrow$ `F7` và `SPACE` để đảm bảo mọi hiệu ứng chạy mượt mà.
+   - Quay lại 1 video ngắn (3–5 phút) trình diễn các phím `F1`–`F7` để làm tư liệu dự phòng tuyệt đối an toàn khi lên bục bảo vệ đồ án.
+
+---
+
+## 5. BẢNG TỔNG HỢP TRẠNG THÁI CÁC HẠNG MỤC ĐỒ ÁN (GDD MỤC 58)
+
+| Phân loại GDD | Hạng mục chức năng | Trạng thái hiện tại | Tuần hoàn thiện |
+| :--- | :--- | :---: | :---: |
+| **Must Have** | Turn-based Battle (3 Phases) & Formation Grid ($3 \times 3$) | ✅ Hoàn thành (Core) | Tuần 1–2 (+Visual Tuần 5) |
+| **Must Have** | 5 Class nhân vật, Basic Attack & Skills, Interception | ✅ Hoàn thành | Tuần 1–2 |
+| **Must Have** | Utility AI (`TargetEvaluator` + `ActionEvaluator`) | ✅ Hoàn thành | Tuần 2 |
+| **Must Have** | Squad AI (2 phe) & Mid-Battle Adaptation (Chống Thrashing) | ✅ Hoàn thành | Tuần 2 & Tuần 4 |
+| **Must Have** | Player-Configurable AI Policy & Skill Auto/Semi/Manual | ✅ Hoàn thành (Core) | Tuần 3 (+UI Tuần 7) |
+| **Must Have** | Campaign Map 5 tầng theo Seed, Reward (1 trong 3), 4 Relics | ✅ Hoàn thành | Tuần 3 |
+| **Must Have** | Save / Load JSON (`Newtonsoft.Json`) | ✅ Hoàn thành | Tuần 3 |
+| **Must Have** | Giao diện Sàn đấu 2D trực quan & Diễn hoạt `DOTween` | 🔄 Đang triển khai | **Tuần 5 – Tuần 6** |
+| **Should Have** | Explainable AI Debugger (`Phím F3`) & Combat Log chi tiết | ✅ Hoàn thành | Tuần 2 |
+| **Should Have** | Boss Đa giai đoạn (*The Warden* — 3 Phases) | ✅ Hoàn thành | Tuần 4 |
+| **Should Have** | World Modifiers (4 loại) & Enemy Affixes (3 loại) | ✅ Hoàn thành | Tuần 4 |
+| **Should Have** | 3 Loại Nhiệm vụ (`Assault`, `Survival`, `Elimination`) & 3 Biomes | ⏳ Kế hoạch | **Tuần 7** |
+| **Could Have** | Headless AI Batch Simulator (100 trận) & QA Automated Auditor | ✅ Hoàn thành | Tuần 4 |
+| **Could Have** | Endless Mode, Player Behavior Profile & Adaptive Encounter | ⏳ Kế hoạch | **Tuần 8** |
+| **Could Have** | Âm thanh chiến đấu (SFX) & Phím tắt Demo Hội đồng (`F1–F7`) | ⏳ Kế hoạch | **Tuần 8 – Tuần 9** |

@@ -34,6 +34,9 @@ namespace CrownlessWarband.Presentation.BattleView
         private Vector2 _policyScrollPos = Vector2.zero;
         private Vector2 _simReportScrollPos = Vector2.zero;
         private Vector2 _qaAuditScrollPos = Vector2.zero;
+        private Vector2 _teamListScrollPos = Vector2.zero;
+        private bool _compactBattleHud = true;
+        private CombatEventPresenter _eventPresenter;
 
         // Trạng thái cho Headless AI Batch Simulator
         private BatchSimulationResult _lastSimResult;
@@ -56,6 +59,27 @@ namespace CrownlessWarband.Presentation.BattleView
 
         private void Start()
         {
+            Camera cam = Camera.main;
+            if (cam != null)
+            {
+                cam.orthographic = true;
+                cam.orthographicSize = 5.4f;
+                cam.backgroundColor = new Color(0.09f, 0.11f, 0.15f, 1f);
+            }
+
+            BattlefieldGridView gridView = FindFirstObjectByType<BattlefieldGridView>();
+            if (gridView == null)
+            {
+                GameObject gridObj = new GameObject("BattlefieldVisualizer");
+                gridView = gridObj.AddComponent<BattlefieldGridView>();
+            }
+
+            _eventPresenter = FindFirstObjectByType<CombatEventPresenter>();
+            if (_eventPresenter == null)
+            {
+                _eventPresenter = gridView.gameObject.AddComponent<CombatEventPresenter>();
+            }
+
             if (CurrentRun == null)
             {
                 CurrentRun = CampaignGenerator.CreateNewRun(847291, CampaignGenerator.CreateDefaultPlayerWarband());
@@ -90,10 +114,27 @@ namespace CrownlessWarband.Presentation.BattleView
 
         public void RunAutoCombat()
         {
-            if (CurrentState == null || TurnManager.IsBattleOver(CurrentState)) return;
+            if (CurrentState == null) return;
+
+            if (_eventPresenter == null)
+            {
+                _eventPresenter = FindFirstObjectByType<CombatEventPresenter>();
+            }
+
+            if (_eventPresenter != null && _eventPresenter.IsPlayingEvents)
+            {
+                _eventPresenter.SkipAllPendingEvents();
+                return;
+            }
+
+            if (TurnManager.IsBattleOver(CurrentState)) return;
 
             if (CurrentState.CurrentPhase == TurnPhase.Planning)
             {
+                if (_eventPresenter != null)
+                {
+                    _eventPresenter.IsPaused = false;
+                }
                 TurnManager.ExecuteAutoCombatPhase(CurrentState);
             }
         }
@@ -280,7 +321,9 @@ namespace CrownlessWarband.Presentation.BattleView
         {
             InitStyles();
 
-            float panelWidth = Mathf.Min(740, Screen.width * 0.60f);
+            float panelWidth = (ScreenMode == SandboxScreenMode.ActiveBattle && _compactBattleHud)
+                ? Mathf.Min(430f, Screen.width * 0.28f)
+                : Mathf.Min(740f, Screen.width * 0.58f);
             GUILayout.BeginArea(new Rect(10, 10, panelWidth, Screen.height - 20), _boxStyle);
 
             // 1. Top Global Bar (Thông tin chung và Chuyển đổi màn hình)
@@ -326,49 +369,78 @@ namespace CrownlessWarband.Presentation.BattleView
             GUI.color = Color.white;
             GUILayout.EndHorizontal();
 
-            GUILayout.BeginHorizontal();
-            GUI.color = new Color(0.4f, 1f, 0.4f);
-            GUILayout.Label($"<b>Relics Active:</b> [{relicsText}]");
-            GUI.color = Color.gray;
-            GUILayout.Label($"<i>{_saveStatusMsg}</i>", GUILayout.Width(280));
-            GUI.color = Color.white;
-            GUILayout.EndHorizontal();
+            bool isCompact = (ScreenMode == SandboxScreenMode.ActiveBattle && _compactBattleHud);
 
-            GUILayout.Space(2);
-
-            // Dòng 2: Nút chuyển màn hình & Lưu/Nạp JSON
-            GUILayout.BeginHorizontal();
-
-            GUI.backgroundColor = ScreenMode == SandboxScreenMode.CampaignMap ? Color.cyan : Color.white;
-            if (GUILayout.Button("[1] Map & AI", GUILayout.Height(26)))
+            if (isCompact)
             {
-                ScreenMode = SandboxScreenMode.CampaignMap;
-            }
+                GUI.color = new Color(0.4f, 1f, 0.4f);
+                GUILayout.Label($"<b>Relics:</b> [{relicsText}]", _logStyle);
+                GUI.color = Color.gray;
+                GUILayout.Label($"<i>{_saveStatusMsg}</i>", _logStyle);
+                GUI.color = Color.white;
 
-            GUI.backgroundColor = ScreenMode == SandboxScreenMode.ActiveBattle ? Color.green : Color.white;
-            if (GUILayout.Button("[2] 5v5 Battle", GUILayout.Height(26)))
+                GUILayout.Space(2);
+                GUILayout.BeginHorizontal();
+                GUI.backgroundColor = ScreenMode == SandboxScreenMode.CampaignMap ? Color.cyan : Color.white;
+                if (GUILayout.Button("[1] Map", GUILayout.Height(24))) ScreenMode = SandboxScreenMode.CampaignMap;
+
+                GUI.backgroundColor = ScreenMode == SandboxScreenMode.ActiveBattle ? Color.green : Color.white;
+                if (GUILayout.Button("[2] Battle", GUILayout.Height(24))) ScreenMode = SandboxScreenMode.ActiveBattle;
+
+                GUI.backgroundColor = ScreenMode == SandboxScreenMode.BatchSimulator ? new Color(1f, 0.4f, 1f) : Color.white;
+                if (GUILayout.Button("[3] Batch Sim", GUILayout.Height(24))) ScreenMode = SandboxScreenMode.BatchSimulator;
+
+                GUI.backgroundColor = Color.white;
+                if (GUILayout.Button("Save", GUILayout.Height(24), GUILayout.Width(48))) SaveRunToJson();
+                if (GUILayout.Button("Load", GUILayout.Height(24), GUILayout.Width(48))) LoadRunFromJson();
+                GUILayout.EndHorizontal();
+            }
+            else
             {
-                ScreenMode = SandboxScreenMode.ActiveBattle;
-            }
+                GUILayout.BeginHorizontal();
+                GUI.color = new Color(0.4f, 1f, 0.4f);
+                GUILayout.Label($"<b>Relics Active:</b> [{relicsText}]");
+                GUI.color = Color.gray;
+                GUILayout.Label($"<i>{_saveStatusMsg}</i>", GUILayout.Width(280));
+                GUI.color = Color.white;
+                GUILayout.EndHorizontal();
 
-            GUI.backgroundColor = ScreenMode == SandboxScreenMode.BatchSimulator ? new Color(1f, 0.4f, 1f) : Color.white;
-            if (GUILayout.Button("[3] AI Batch Simulator", GUILayout.Height(26)))
-            {
-                ScreenMode = SandboxScreenMode.BatchSimulator;
-            }
+                GUILayout.Space(2);
 
-            GUI.backgroundColor = Color.white;
-            if (GUILayout.Button("[Save JSON]", GUILayout.Height(26)))
-            {
-                SaveRunToJson();
-            }
+                // Dòng 2: Nút chuyển màn hình & Lưu/Nạp JSON
+                GUILayout.BeginHorizontal();
 
-            if (GUILayout.Button("[Load JSON]", GUILayout.Height(26)))
-            {
-                LoadRunFromJson();
-            }
+                GUI.backgroundColor = ScreenMode == SandboxScreenMode.CampaignMap ? Color.cyan : Color.white;
+                if (GUILayout.Button("[1] Map & AI", GUILayout.Height(26)))
+                {
+                    ScreenMode = SandboxScreenMode.CampaignMap;
+                }
 
-            GUILayout.EndHorizontal();
+                GUI.backgroundColor = ScreenMode == SandboxScreenMode.ActiveBattle ? Color.green : Color.white;
+                if (GUILayout.Button("[2] 5v5 Battle", GUILayout.Height(26)))
+                {
+                    ScreenMode = SandboxScreenMode.ActiveBattle;
+                }
+
+                GUI.backgroundColor = ScreenMode == SandboxScreenMode.BatchSimulator ? new Color(1f, 0.4f, 1f) : Color.white;
+                if (GUILayout.Button("[3] AI Batch Simulator", GUILayout.Height(26)))
+                {
+                    ScreenMode = SandboxScreenMode.BatchSimulator;
+                }
+
+                GUI.backgroundColor = Color.white;
+                if (GUILayout.Button("[Save JSON]", GUILayout.Height(26)))
+                {
+                    SaveRunToJson();
+                }
+
+                if (GUILayout.Button("[Load JSON]", GUILayout.Height(26)))
+                {
+                    LoadRunFromJson();
+                }
+
+                GUILayout.EndHorizontal();
+            }
             GUILayout.EndVertical();
         }
 
@@ -523,7 +595,7 @@ namespace CrownlessWarband.Presentation.BattleView
 
         private void DrawActiveBattleScreen(float panelWidth)
         {
-            // Header: Thông tin Turn, Phase, Squad Strategies
+            // Header: Thông tin Turn, Phase, Squad Strategies & Nút chuyển chế độ HUD
             GUILayout.BeginHorizontal();
             GUILayout.Label($"TURN {CurrentState.CurrentTurn} | Phase: {CurrentState.CurrentPhase}", _headerStyle);
             if (TurnManager.IsBattleOver(CurrentState, out var winner))
@@ -531,14 +603,18 @@ namespace CrownlessWarband.Presentation.BattleView
                 if (winner == TeamSide.Player)
                 {
                     GUI.color = Color.green;
-                    GUILayout.Label($"VICTORY! All enemies eliminated!", _headerStyle);
+                    GUILayout.Label($"VICTORY!", _headerStyle);
                 }
                 else
                 {
                     GUI.color = Color.red;
-                    GUILayout.Label($"DEFEAT! Warband has fallen!", _headerStyle);
+                    GUILayout.Label($"DEFEAT!", _headerStyle);
                 }
                 GUI.color = Color.white;
+            }
+            if (GUILayout.Button(_compactBattleHud ? "[Expand List]" : "[Compact 2D]", GUILayout.Width(95)))
+            {
+                _compactBattleHud = !_compactBattleHud;
             }
             GUILayout.EndHorizontal();
 
@@ -554,58 +630,169 @@ namespace CrownlessWarband.Presentation.BattleView
 
             if (CurrentState.CurrentPhase == TurnPhase.Planning && !TurnManager.IsBattleOver(CurrentState))
             {
-                if (GUILayout.Button($"[Cycle Mod]", GUILayout.Width(100)))
+                if (GUILayout.Button($"[Cycle Mod]", GUILayout.Width(86)))
                 {
                     CurrentState.ActiveModifier = (WorldModifierType)(((int)CurrentState.ActiveModifier + 1) % 5);
                 }
             }
             GUILayout.EndHorizontal();
 
+            if (CurrentState.CurrentPhase == TurnPhase.Planning && CurrentState.CurrentTurn == 1)
+            {
+                GUILayout.Space(2);
+                GUI.color = Color.cyan;
+                GUILayout.Label("<b>[Turn 1 Planning]</b> Click any Player unit on the 2D Grid to swap Formation slots or inspect AI [F3]!", _logStyle);
+                GUI.color = Color.white;
+            }
+
             GUILayout.Space(6);
 
             // Nút bấm tương tác chiến đấu
-            GUILayout.BeginHorizontal();
-            GUI.enabled = (CurrentState.CurrentPhase == TurnPhase.Planning && !TurnManager.IsBattleOver(CurrentState));
-            if (GUILayout.Button("[SPACE] Run Auto-Combat Turn", GUILayout.Height(30)))
+            if (_compactBattleHud)
             {
-                RunAutoCombat();
-            }
-
-            if (GUILayout.Button("[Manual Ult: Mage Meteor]", GUILayout.Height(30)))
-            {
-                TriggerManualMageMeteor();
-            }
-            GUI.enabled = true;
-
-            if (GUILayout.Button("[Test Boss Warden]", GUILayout.Height(30), GUILayout.Width(135)))
-            {
-                // Hồi phục 100% Max HP cho toàn bộ warband trước khi test Boss để đảm bảo tính công bằng
-                if (CurrentRun != null)
+                GUILayout.BeginHorizontal();
+                GUI.enabled = (CurrentState.CurrentPhase == TurnPhase.Planning && !TurnManager.IsBattleOver(CurrentState));
+                if (GUILayout.Button("[SPACE] Auto-Combat", GUILayout.Height(28)))
                 {
-                    for (int i = 0; i < CurrentRun.PlayerRoster.Count; i++)
-                    {
-                        var u = CurrentRun.PlayerRoster[i];
-                        u.CurrentHP = u.MaxHP;
-                    }
+                    RunAutoCombat();
                 }
 
-                var bossNode = CurrentRun != null ? CurrentRun.Nodes.Find(n => n.NodeType == CampaignNodeType.Boss) : null;
-                if (bossNode == null) bossNode = new CampaignNode(4, 0, "F4_L0", CampaignNodeType.Boss, "The Warden's Stronghold", 100);
-                CurrentState = CampaignGenerator.CreateBattleForNode(CurrentRun, bossNode);
-                TurnManager.StartPlanningPhase(CurrentState);
-                _saveStatusMsg = "Spawned Boss: The Warden (Multi-Phase Test - Full Warband Restored)";
+                if (GUILayout.Button("[Manual: Meteor]", GUILayout.Height(28)))
+                {
+                    TriggerManualMageMeteor();
+                }
+                GUI.enabled = true;
+                GUILayout.EndHorizontal();
+
+                GUILayout.BeginHorizontal();
+                if (GUILayout.Button("[Test Boss Warden]", GUILayout.Height(26)))
+                {
+                    if (CurrentRun != null)
+                    {
+                        for (int i = 0; i < CurrentRun.PlayerRoster.Count; i++)
+                        {
+                            var u = CurrentRun.PlayerRoster[i];
+                            u.CurrentHP = u.MaxHP;
+                        }
+                    }
+
+                    var bossNode = CurrentRun != null ? CurrentRun.Nodes.Find(n => n.NodeType == CampaignNodeType.Boss) : null;
+                    if (bossNode == null) bossNode = new CampaignNode(4, 0, "F4_L0", CampaignNodeType.Boss, "The Warden's Stronghold", 100);
+                    CurrentState = CampaignGenerator.CreateBattleForNode(CurrentRun, bossNode);
+                    TurnManager.StartPlanningPhase(CurrentState);
+                    _saveStatusMsg = "Spawned Boss: The Warden (Multi-Phase Test - Full Warband Restored)";
+                }
+
+                if (GUILayout.Button("[Kill Assassin]", GUILayout.Height(26)))
+                {
+                    KillEnemyAssassinForAdaptationTest();
+                }
+
+                if (GUILayout.Button("[R] Reset", GUILayout.Height(26), GUILayout.Width(68)))
+                {
+                    ResetScenario();
+                }
+                GUILayout.EndHorizontal();
+            }
+            else
+            {
+                GUILayout.BeginHorizontal();
+                GUI.enabled = (CurrentState.CurrentPhase == TurnPhase.Planning && !TurnManager.IsBattleOver(CurrentState));
+                if (GUILayout.Button("[SPACE] Run Auto-Combat Turn", GUILayout.Height(30)))
+                {
+                    RunAutoCombat();
+                }
+
+                if (GUILayout.Button("[Manual Ult: Mage Meteor]", GUILayout.Height(30)))
+                {
+                    TriggerManualMageMeteor();
+                }
+                GUI.enabled = true;
+
+                if (GUILayout.Button("[Test Boss Warden]", GUILayout.Height(30), GUILayout.Width(135)))
+                {
+                    // Hồi phục 100% Max HP cho toàn bộ warband trước khi test Boss để đảm bảo tính công bằng
+                    if (CurrentRun != null)
+                    {
+                        for (int i = 0; i < CurrentRun.PlayerRoster.Count; i++)
+                        {
+                            var u = CurrentRun.PlayerRoster[i];
+                            u.CurrentHP = u.MaxHP;
+                        }
+                    }
+
+                    var bossNode = CurrentRun != null ? CurrentRun.Nodes.Find(n => n.NodeType == CampaignNodeType.Boss) : null;
+                    if (bossNode == null) bossNode = new CampaignNode(4, 0, "F4_L0", CampaignNodeType.Boss, "The Warden's Stronghold", 100);
+                    CurrentState = CampaignGenerator.CreateBattleForNode(CurrentRun, bossNode);
+                    TurnManager.StartPlanningPhase(CurrentState);
+                    _saveStatusMsg = "Spawned Boss: The Warden (Multi-Phase Test - Full Warband Restored)";
+                }
+
+                if (GUILayout.Button("[Kill Assassin]", GUILayout.Height(30), GUILayout.Width(100)))
+                {
+                    KillEnemyAssassinForAdaptationTest();
+                }
+
+                if (GUILayout.Button("[R] Reset", GUILayout.Height(30), GUILayout.Width(65)))
+                {
+                    ResetScenario();
+                }
+                GUILayout.EndHorizontal();
             }
 
-            if (GUILayout.Button("[Kill Assassin]", GUILayout.Height(30), GUILayout.Width(100)))
+            if (_eventPresenter == null)
             {
-                KillEnemyAssassinForAdaptationTest();
+                _eventPresenter = FindFirstObjectByType<CombatEventPresenter>();
             }
 
-            if (GUILayout.Button("[R] Reset", GUILayout.Height(30), GUILayout.Width(65)))
+            if (_eventPresenter != null)
             {
-                ResetScenario();
+                GUILayout.Space(4);
+                GUILayout.BeginVertical(GUI.skin.box);
+
+                // Row 1: Speed & Step Controls
+                GUILayout.BeginHorizontal();
+
+                GUI.backgroundColor = _eventPresenter.SpeedMode == PlaybackSpeedMode.Speed1x ? Color.yellow : Color.white;
+                if (GUILayout.Button("[1x]", GUILayout.Height(22))) _eventPresenter.SpeedMode = PlaybackSpeedMode.Speed1x;
+
+                GUI.backgroundColor = _eventPresenter.SpeedMode == PlaybackSpeedMode.Speed2x ? Color.yellow : Color.white;
+                if (GUILayout.Button("[2x]", GUILayout.Height(22))) _eventPresenter.SpeedMode = PlaybackSpeedMode.Speed2x;
+
+                GUI.backgroundColor = _eventPresenter.SpeedMode == PlaybackSpeedMode.Speed4x ? Color.yellow : Color.white;
+                if (GUILayout.Button("[4x]", GUILayout.Height(22))) _eventPresenter.SpeedMode = PlaybackSpeedMode.Speed4x;
+
+                GUI.backgroundColor = _eventPresenter.SpeedMode == PlaybackSpeedMode.Instant ? Color.yellow : Color.white;
+                if (GUILayout.Button("[Inst]", GUILayout.Height(22))) _eventPresenter.SpeedMode = PlaybackSpeedMode.Instant;
+
+                GUI.backgroundColor = _eventPresenter.IsPaused ? new Color(1f, 0.65f, 0.2f) : Color.white;
+                if (GUILayout.Button(_eventPresenter.IsPaused ? "[Resume]" : "[Pause]", GUILayout.Height(22)))
+                {
+                    _eventPresenter.IsPaused = !_eventPresenter.IsPaused;
+                }
+
+                GUI.backgroundColor = Color.white;
+                GUI.enabled = CurrentState.EventQueue.Count > 0;
+                if (GUILayout.Button("[Step]", GUILayout.Height(22)))
+                {
+                    _eventPresenter.IsPaused = true;
+                    _eventPresenter.StepSingleEvent();
+                }
+
+                GUI.enabled = _eventPresenter.IsPlayingEvents;
+                if (GUILayout.Button("[Skip]", GUILayout.Height(22)))
+                {
+                    _eventPresenter.SkipAllPendingEvents();
+                }
+
+                GUI.enabled = true;
+                GUILayout.EndHorizontal();
+
+                // Row 2: Live Event Status
+                GUILayout.Label($"<color=#88CCFF><b>Queue:</b> {CurrentState.EventQueue.Count}</color> | <i>{_eventPresenter.LastPresentedEventSummary}</i>", _logStyle);
+
+                GUILayout.EndVertical();
             }
-            GUILayout.EndHorizontal();
 
             // Nếu trận đấu kết thúc thắng lợi: Hiện nút Claim Rewards
             if (TurnManager.IsBattleOver(CurrentState, out var battleWinner))
@@ -644,32 +831,55 @@ namespace CrownlessWarband.Presentation.BattleView
                 }
             }
 
-            GUILayout.Space(8);
+            GUILayout.Space(6);
 
-            // Danh sách 2 phe
-            GUILayout.BeginHorizontal();
+            // Danh sách 2 phe (nằm trong ScrollView gọn gàng khi ở chế độ Compact 2D)
+            if (_compactBattleHud)
+            {
+                _teamListScrollPos = GUILayout.BeginScrollView(_teamListScrollPos, GUI.skin.box, GUILayout.Height(230f));
 
-            // Phe Người chơi
-            GUILayout.BeginVertical(GUILayout.Width((panelWidth - 30) * 0.5f));
-            GUI.color = Color.cyan;
-            GUILayout.Label("--- PLAYER WARBAND ---", _headerStyle);
-            GUI.color = Color.white;
-            DrawTeamList(TeamSide.Player);
-            GUILayout.EndVertical();
+                GUI.color = Color.cyan;
+                GUILayout.Label("--- PLAYER WARBAND ---", _headerStyle);
+                GUI.color = Color.white;
+                DrawTeamList(TeamSide.Player);
 
-            GUILayout.Space(10);
+                GUILayout.Space(6);
 
-            // Phe Địch
-            GUILayout.BeginVertical(GUILayout.Width((panelWidth - 30) * 0.5f));
-            GUI.color = new Color(1f, 0.5f, 0.5f);
-            GUILayout.Label("--- ENEMY FORCES ---", _headerStyle);
-            GUI.color = Color.white;
-            DrawTeamList(TeamSide.Enemy);
-            GUILayout.EndVertical();
+                GUI.color = new Color(1f, 0.5f, 0.5f);
+                GUILayout.Label("--- ENEMY FORCES ---", _headerStyle);
+                GUI.color = Color.white;
+                DrawTeamList(TeamSide.Enemy);
 
-            GUILayout.EndHorizontal();
+                GUILayout.EndScrollView();
+            }
+            else
+            {
+                _teamListScrollPos = GUILayout.BeginScrollView(_teamListScrollPos);
+                GUILayout.BeginHorizontal();
 
-            GUILayout.Space(8);
+                // Phe Người chơi
+                GUILayout.BeginVertical(GUILayout.Width((panelWidth - 40) * 0.5f));
+                GUI.color = Color.cyan;
+                GUILayout.Label("--- PLAYER WARBAND ---", _headerStyle);
+                GUI.color = Color.white;
+                DrawTeamList(TeamSide.Player);
+                GUILayout.EndVertical();
+
+                GUILayout.Space(10);
+
+                // Phe Địch
+                GUILayout.BeginVertical(GUILayout.Width((panelWidth - 40) * 0.5f));
+                GUI.color = new Color(1f, 0.5f, 0.5f);
+                GUILayout.Label("--- ENEMY FORCES ---", _headerStyle);
+                GUI.color = Color.white;
+                DrawTeamList(TeamSide.Enemy);
+                GUILayout.EndVertical();
+
+                GUILayout.EndHorizontal();
+                GUILayout.EndScrollView();
+            }
+
+            GUILayout.Space(6);
 
             // Nhật ký chiến đấu (Combat Log)
             GUILayout.Label("=== RECENT COMBAT EVENTS ===", _headerStyle);

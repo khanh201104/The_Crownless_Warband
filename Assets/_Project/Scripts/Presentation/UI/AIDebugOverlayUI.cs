@@ -19,7 +19,12 @@ namespace CrownlessWarband.Presentation.UI
 
         [Header("Debug Settings")]
         public bool isVisible = true; // Mặc định mở để kiểm thử tiện lợi
+        public bool autoFollowActingUnit = true;
 
+        private BattlefieldGridView _gridView;
+        private bool _subscribedToGrid;
+        private CombatEventPresenter _eventPresenter;
+        private bool _subscribedToPresenter;
         private string _selectedUnitId = "p_vanguard";
         private Vector2 _decisionScrollPos = Vector2.zero;
         private GUIStyle _windowStyle;
@@ -34,14 +39,73 @@ namespace CrownlessWarband.Presentation.UI
             {
                 sandboxController = FindFirstObjectByType<BattleSandboxController>();
             }
+            EnsureGridSubscription();
         }
 
         private void Update()
         {
+            EnsureGridSubscription();
+
             // Bấm F3 để bật/tắt bảng AI Debug
             if (Input.GetKeyDown(KeyCode.F3))
             {
                 isVisible = !isVisible;
+            }
+        }
+
+        private void OnDestroy()
+        {
+            if (_gridView != null && _subscribedToGrid)
+            {
+                _gridView.OnUnitSelected -= HandleGridUnitSelected;
+                _subscribedToGrid = false;
+            }
+
+            if (_eventPresenter != null && _subscribedToPresenter)
+            {
+                _eventPresenter.OnActingUnitChanged -= HandleActingUnitChanged;
+                _subscribedToPresenter = false;
+            }
+        }
+
+        private void EnsureGridSubscription()
+        {
+            if (_gridView == null)
+            {
+                _gridView = FindFirstObjectByType<BattlefieldGridView>();
+            }
+
+            if (_gridView != null && !_subscribedToGrid)
+            {
+                _gridView.OnUnitSelected += HandleGridUnitSelected;
+                _subscribedToGrid = true;
+            }
+
+            if (_eventPresenter == null)
+            {
+                _eventPresenter = FindFirstObjectByType<CombatEventPresenter>();
+            }
+
+            if (_eventPresenter != null && !_subscribedToPresenter)
+            {
+                _eventPresenter.OnActingUnitChanged += HandleActingUnitChanged;
+                _subscribedToPresenter = true;
+            }
+        }
+
+        public void HandleGridUnitSelected(string unitInstanceId)
+        {
+            if (!string.IsNullOrEmpty(unitInstanceId))
+            {
+                _selectedUnitId = unitInstanceId;
+            }
+        }
+
+        private void HandleActingUnitChanged(string actingUnitId)
+        {
+            if (autoFollowActingUnit && !string.IsNullOrEmpty(actingUnitId))
+            {
+                _selectedUnitId = actingUnitId;
             }
         }
 
@@ -92,7 +156,7 @@ namespace CrownlessWarband.Presentation.UI
             InitStyles();
 
             var state = sandboxController.CurrentState;
-            float panelWidth = Mathf.Min(560, Screen.width * 0.42f);
+            float panelWidth = Mathf.Min(430f, Screen.width * 0.27f);
             float panelX = Screen.width - panelWidth - 10;
             Rect panelRect = new Rect(panelX, 10, panelWidth, Screen.height - 20);
 
@@ -103,6 +167,14 @@ namespace CrownlessWarband.Presentation.UI
             // Tiêu đề & Hướng dẫn phím tắt
             GUILayout.BeginHorizontal();
             GUILayout.Label("=== [F3] EXPLAINABLE AI DEBUGGER ===", _headerStyle);
+
+            GUI.backgroundColor = autoFollowActingUnit ? new Color(0.25f, 0.85f, 0.45f) : Color.gray;
+            if (GUILayout.Button(autoFollowActingUnit ? "Auto-Follow: ON" : "Auto-Follow: OFF", GUILayout.Width(115), GUILayout.Height(22)))
+            {
+                autoFollowActingUnit = !autoFollowActingUnit;
+            }
+            GUI.backgroundColor = Color.white;
+
             if (GUILayout.Button("Close [F3]", GUILayout.Width(75), GUILayout.Height(22)))
             {
                 isVisible = false;
