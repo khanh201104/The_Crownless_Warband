@@ -48,6 +48,7 @@ namespace CrownlessWarband.Core.Battle
         public UnitAIPolicy AIPolicy = new UnitAIPolicy();
         public EnemyAffixType Affix = EnemyAffixType.None;
         public int BossPhase = 0; // 0 for normal units; 1, 2, 3 for Boss phases (GDD Section 38)
+        public bool IsPriorityObjective = false; // Mục tiêu VIP trong nhiệm vụ Elimination (GDD Section 37)
 
         // Skills
         public List<SkillInstance> Skills = new List<SkillInstance>();

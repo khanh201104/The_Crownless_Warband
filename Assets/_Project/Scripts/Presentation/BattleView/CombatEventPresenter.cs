@@ -25,6 +25,7 @@ namespace CrownlessWarband.Presentation.BattleView
         [SerializeField] private BattleSandboxController sandboxController;
         [SerializeField] private BattlefieldGridView gridView;
         [SerializeField] private FloatingTextView floatingTextView;
+        [SerializeField] private BattleAudioManager audioManager;
 
         public PlaybackSpeedMode SpeedMode { get; set; } = PlaybackSpeedMode.Speed1x;
         public bool IsPaused { get; set; } = false;
@@ -32,6 +33,7 @@ namespace CrownlessWarband.Presentation.BattleView
         public string CurrentActingUnitId { get; private set; }
         public string LastPresentedEventSummary { get; private set; } = "Ready";
         public event Action<string> OnActingUnitChanged;
+        public event Action<CombatEvent> OnCombatEventPresented;
 
         private BattleState _lastObservedState;
         private float _stepWaitTimer;
@@ -111,6 +113,16 @@ namespace CrownlessWarband.Presentation.BattleView
             }
         }
 
+        public void CapturePreTurnSnapshot(BattleState state)
+        {
+            EnsureReferences();
+            if (gridView != null && state != null)
+            {
+                gridView.RefreshBattlefield(state);
+                gridView.SnapshotAllUnitsForPlayback(state);
+            }
+        }
+
         public void StepSingleEvent()
         {
             EnsureReferences();
@@ -160,6 +172,12 @@ namespace CrownlessWarband.Presentation.BattleView
                 ? evt.Description
                 : $"{evt.EventType}: {evt.SkillName}";
 
+            OnCombatEventPresented?.Invoke(evt);
+            if (audioManager != null && (SpeedMode != PlaybackSpeedMode.Instant || evt.EventType == CombatEventType.BattleEnded))
+            {
+                audioManager.PlayForCombatEvent(evt);
+            }
+
             switch (evt.EventType)
             {
                 case CombatEventType.TurnStarted:
@@ -206,6 +224,23 @@ namespace CrownlessWarband.Presentation.BattleView
 
                     if (sourceView != null)
                     {
+                        int energyCost = 0;
+                        int energyGain = 15;
+                        if (sourceUnit != null && !string.IsNullOrEmpty(evt.SkillName))
+                        {
+                            for (int s = 0; s < sourceUnit.Skills.Count; s++)
+                            {
+                                var sk = sourceUnit.Skills[s];
+                                if (sk != null && sk.Name == evt.SkillName)
+                                {
+                                    energyCost = sk.EnergyCost;
+                                    energyGain = (sk.Slot == SkillSlotType.BasicAttack) ? 20 : 0;
+                                    break;
+                                }
+                            }
+                        }
+                        sourceView.ApplyVisualSkillUsed(energyCost, energyGain);
+
                         if (sourceUnit != null && targetUnit != null && sourceUnit.Team != targetUnit.Team && targetView != null)
                         {
                             sourceView.PlayAttackLunge(targetView.transform.position);
@@ -264,6 +299,7 @@ namespace CrownlessWarband.Presentation.BattleView
                         UnitVisualView targetView = gridView != null ? gridView.GetUnitVisual(evt.TargetUnitId) : null;
                         if (targetView != null)
                         {
+                            targetView.ApplyVisualDamage(evt.Value);
                             targetView.PlayHitShake();
                             if (floatingTextView != null)
                             {
@@ -279,9 +315,25 @@ namespace CrownlessWarband.Presentation.BattleView
                             }
                         }
                     }
-                    else if (floatingTextView != null)
+                    else
                     {
-                        floatingTextView.SpawnTacticalBanner("ACID RAIN (-5% HP)", new Color(0.68f, 0.95f, 0.25f, 1f), 1.6f);
+                        if (gridView != null && state != null)
+                        {
+                            for (int i = 0; i < state.Units.Count; i++)
+                            {
+                                var u = state.Units[i];
+                                if (u == null || !u.IsAlive) continue;
+                                UnitVisualView uView = gridView.GetUnitVisual(u.InstanceId);
+                                if (uView != null)
+                                {
+                                    uView.ApplyVisualDamage(Math.Max(1, (int)(u.MaxHP * 0.05f)));
+                                }
+                            }
+                        }
+                        if (floatingTextView != null)
+                        {
+                            floatingTextView.SpawnTacticalBanner("ACID RAIN (-5% HP)", new Color(0.68f, 0.95f, 0.25f, 1f), 1.6f);
+                        }
                     }
                     return 0.34f;
                 }
@@ -291,6 +343,7 @@ namespace CrownlessWarband.Presentation.BattleView
                     UnitVisualView targetView = gridView != null ? gridView.GetUnitVisual(evt.TargetUnitId) : null;
                     if (targetView != null)
                     {
+                        targetView.ApplyVisualHeal(evt.Value);
                         targetView.PlayPulseEffect(Color.green);
                         if (floatingTextView != null)
                         {
@@ -312,6 +365,7 @@ namespace CrownlessWarband.Presentation.BattleView
                     UnitVisualView targetView = gridView != null ? gridView.GetUnitVisual(evt.TargetUnitId) : null;
                     if (targetView != null)
                     {
+                        targetView.ApplyVisualShield(evt.Value);
                         targetView.PlayPulseEffect(Color.cyan);
                         if (floatingTextView != null)
                         {
@@ -337,6 +391,7 @@ namespace CrownlessWarband.Presentation.BattleView
 
                     if (unitView != null)
                     {
+                        unitView.ApplyVisualStatus(evt.Description);
                         unitView.PlayPulseEffect(badgeColor);
                         if (floatingTextView != null && !string.IsNullOrEmpty(badgeText))
                         {
@@ -359,6 +414,7 @@ namespace CrownlessWarband.Presentation.BattleView
                     UnitVisualView deadView = gridView != null ? gridView.GetUnitVisual(deadUnitId) : null;
                     if (deadView != null)
                     {
+                        deadView.ApplyVisualDeath();
                         deadView.PlayHitShake(0.40f, 0.22f);
                         if (floatingTextView != null)
                         {
@@ -457,6 +513,15 @@ namespace CrownlessWarband.Presentation.BattleView
                 if (floatingTextView == null)
                 {
                     floatingTextView = gameObject.AddComponent<FloatingTextView>();
+                }
+            }
+
+            if (audioManager == null)
+            {
+                audioManager = FindFirstObjectByType<BattleAudioManager>();
+                if (audioManager == null)
+                {
+                    audioManager = gameObject.AddComponent<BattleAudioManager>();
                 }
             }
         }

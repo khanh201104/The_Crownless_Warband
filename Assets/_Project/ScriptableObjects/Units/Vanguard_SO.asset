@@ -1,0 +1,29 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cdd20da6b830a1849a64d4c836de4f11, type: 3}
+  m_Name: Vanguard_SO
+  m_EditorClassIdentifier: CrownlessWarband.Data::CrownlessWarband.Data.UnitDataSO
+  CharacterId: p_vanguard
+  UnitName: Vanguard
+  DefaultTeam: 0
+  Role: 1
+  DefaultRow: 0
+  DefaultColumn: 1
+  MaxHP: 250
+  Attack: 38
+  Defense: 18
+  Speed: 14
+  BaseThreat: 25
+  DefaultAffix: 0
+  Skills:
+  - {fileID: 11400000, guid: cca3277d1083dc147af87f5a70269c10, type: 2}
+  - {fileID: 11400000, guid: e521819fa5e8c9b4fa94d1e0491592c0, type: 2}

@@ -23,9 +23,11 @@ namespace CrownlessWarband.Presentation.BattleView
     {
         private static readonly Color SwapHighlightColor = new Color(0.20f, 0.95f, 0.85f, 0.95f);
         private static Sprite _sharedSquareSprite;
+        private static BattlefieldGridView _instance;
 
         [Header("References")]
         [SerializeField] private BattleSandboxController sandboxController;
+        [SerializeField] private CombatEventPresenter eventPresenter = null;
 
         [Header("Optional Custom Sprites")]
         [SerializeField] private List<RoleSpriteEntry> roleSprites = new List<RoleSpriteEntry>();
@@ -46,9 +48,20 @@ namespace CrownlessWarband.Presentation.BattleView
 
         private void Awake()
         {
+            if (_instance != null && _instance != this)
+            {
+                Destroy(gameObject);
+                return;
+            }
+            _instance = this;
+
             if (sandboxController == null)
             {
                 sandboxController = FindFirstObjectByType<BattleSandboxController>();
+            }
+            if (eventPresenter == null)
+            {
+                eventPresenter = FindFirstObjectByType<CombatEventPresenter>();
             }
 
             GetOrCreateDefaultSprite();
@@ -81,6 +94,11 @@ namespace CrownlessWarband.Presentation.BattleView
 
         private void OnDestroy()
         {
+            if (_instance == this)
+            {
+                _instance = null;
+            }
+
             for (int i = 0; i < _slotViews.Count; i++)
             {
                 if (_slotViews[i] != null)
@@ -167,6 +185,12 @@ namespace CrownlessWarband.Presentation.BattleView
                 SelectedUnitId = null;
             }
 
+            if (eventPresenter == null)
+            {
+                eventPresenter = FindFirstObjectByType<CombatEventPresenter>();
+            }
+
+            bool isPlaybackActive = eventPresenter != null && eventPresenter.IsPlayingEvents;
             Sprite defaultSprite = GetOrCreateDefaultSprite();
             _activeUnitIds.Clear();
 
@@ -191,7 +215,7 @@ namespace CrownlessWarband.Presentation.BattleView
                 view.IsVisibleOnBattlefield = _isGridVisible;
                 Vector3 slotWorldPos = GetSlotWorldPosition(unit.Team, unit.Position);
                 bool isSelected = !string.IsNullOrEmpty(SelectedUnitId) && unit.InstanceId == SelectedUnitId;
-                view.SyncFromState(unit, slotWorldPos, isSelected);
+                view.SyncFromState(unit, slotWorldPos, isSelected, isPlaybackActive);
             }
 
             // Dọn dẹp các UnitVisualView không còn trong BattleState hiện tại
@@ -219,16 +243,69 @@ namespace CrownlessWarband.Presentation.BattleView
             UpdateSlotHighlights(state);
         }
 
+        public void SnapshotAllUnitsForPlayback(BattleState state)
+        {
+            if (state == null || state.Units == null) return;
+
+            EnsureContainers();
+            Sprite defaultSprite = GetOrCreateDefaultSprite();
+
+            for (int i = 0; i < state.Units.Count; i++)
+            {
+                UnitState unit = state.Units[i];
+                if (unit == null || string.IsNullOrEmpty(unit.InstanceId)) continue;
+
+                UnitVisualView view;
+                if (!_unitVisuals.TryGetValue(unit.InstanceId, out view) || view == null)
+                {
+                    GameObject unitObj = new GameObject($"UnitVisual_{unit.InstanceId}");
+                    unitObj.transform.SetParent(_unitsContainer.transform, false);
+                    view = unitObj.AddComponent<UnitVisualView>();
+                    view.Initialize(unit, defaultSprite, ResolveCustomSprite(unit));
+                    view.OnUnitClicked += HandleUnitClicked;
+                    _unitVisuals[unit.InstanceId] = view;
+                }
+
+                view.SnapshotFromUnitState(unit);
+            }
+        }
+
         private void EnsureContainers()
         {
             if (_slotsContainer == null)
             {
+                if (_slotViews.Count == 0)
+                {
+                    for (int i = transform.childCount - 1; i >= 0; i--)
+                    {
+                        Transform child = transform.GetChild(i);
+                        if (child.name == "GridSlots")
+                        {
+                            child.gameObject.SetActive(false);
+                            Destroy(child.gameObject);
+                        }
+                    }
+                }
+
                 _slotsContainer = new GameObject("GridSlots");
                 _slotsContainer.transform.SetParent(transform, false);
             }
 
             if (_unitsContainer == null)
             {
+                if (_unitVisuals.Count == 0)
+                {
+                    for (int i = transform.childCount - 1; i >= 0; i--)
+                    {
+                        Transform child = transform.GetChild(i);
+                        if (child.name == "UnitVisuals")
+                        {
+                            child.gameObject.SetActive(false);
+                            Destroy(child.gameObject);
+                        }
+                    }
+                }
+
                 _unitsContainer = new GameObject("UnitVisuals");
                 _unitsContainer.transform.SetParent(transform, false);
             }

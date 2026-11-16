@@ -347,9 +347,23 @@ namespace CrownlessWarband.Core.Battle
             // Kiểm tra điều kiện kết thúc trận đấu (Win / Loss)
             if (IsBattleOver(state, out TeamSide? winner))
             {
-                string endMsg = winner.HasValue
-                    ? $"Battle ended! Winner: {winner.Value}."
-                    : "Battle ended in a Draw!";
+                string endMsg;
+                if (!winner.HasValue)
+                {
+                    endMsg = "Battle ended in a Draw!";
+                }
+                else if (winner.Value == TeamSide.Player && state.Mission == MissionType.Survival)
+                {
+                    endMsg = "Battle ended! Winner: Player (Survived required turns!).";
+                }
+                else if (winner.Value == TeamSide.Player && state.Mission == MissionType.Elimination)
+                {
+                    endMsg = "Battle ended! Winner: Player (Priority VIP target eliminated!).";
+                }
+                else
+                {
+                    endMsg = $"Battle ended! Winner: {winner.Value}.";
+                }
 
                 state.EnqueueEvent(new CombatEvent
                 {
@@ -408,6 +422,35 @@ namespace CrownlessWarband.Core.Battle
             {
                 winner = TeamSide.Player;
                 return true;
+            }
+
+            // Nhiệm vụ Elimination: Nếu mục tiêu VIP của phe địch tử trận -> Player thắng ngay lập tức
+            if (state.Mission == MissionType.Elimination)
+            {
+                for (int i = 0; i < state.Units.Count; i++)
+                {
+                    var u = state.Units[i];
+                    if (u != null && u.Team == TeamSide.Enemy &&
+                        (u.IsPriorityObjective || (!string.IsNullOrEmpty(state.PriorityObjectiveUnitId) && u.InstanceId == state.PriorityObjectiveUnitId)))
+                    {
+                        if (!u.IsAlive)
+                        {
+                            winner = TeamSide.Player;
+                            return true;
+                        }
+                    }
+                }
+            }
+
+            // Nhiệm vụ Survival: Sống sót hết lượt SurvivalTargetTurns -> Player thắng
+            if (state.Mission == MissionType.Survival && state.SurvivalTargetTurns > 0)
+            {
+                if (state.CurrentTurn > state.SurvivalTargetTurns ||
+                    (state.CurrentPhase == TurnPhase.Resolution && state.CurrentTurn >= state.SurvivalTargetTurns))
+                {
+                    winner = TeamSide.Player;
+                    return true;
+                }
             }
 
             // Giới hạn tối đa 25 lượt: Phân định kết quả theo số lượng sống và % HP để tránh giằng co

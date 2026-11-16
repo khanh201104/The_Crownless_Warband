@@ -1,0 +1,30 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cdd20da6b830a1849a64d4c836de4f11, type: 3}
+  m_Name: Ranger_SO
+  m_EditorClassIdentifier: CrownlessWarband.Data::CrownlessWarband.Data.UnitDataSO
+  CharacterId: p_ranger
+  UnitName: Ranger
+  DefaultTeam: 0
+  Role: 2
+  DefaultRow: 2
+  DefaultColumn: 0
+  MaxHP: 165
+  Attack: 50
+  Defense: 8
+  Speed: 16
+  BaseThreat: 40
+  DefaultAffix: 0
+  Skills:
+  - {fileID: 11400000, guid: 51e671ab29466ce40a1828352483a9a0, type: 2}
+  - {fileID: 11400000, guid: f6db2dd515557b64880d39281bb154e5, type: 2}
+  - {fileID: 11400000, guid: fd604f8d002fd4f4e9b623116026ed28, type: 2}

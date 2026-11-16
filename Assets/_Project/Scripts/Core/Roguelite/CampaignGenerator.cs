@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using CrownlessWarband.Core.AI;
 using CrownlessWarband.Core.Battle;
 
 namespace CrownlessWarband.Core.Roguelite
@@ -38,52 +39,68 @@ namespace CrownlessWarband.Core.Roguelite
             }
 
             // Sinh cây bản đồ 5 tầng (Floor 0 -> Floor 4)
-            // Floor 0: 1 node Combat
+            // Floor 0: 1 node Combat (RuinedCity)
             var f0_l0 = new CampaignNode(0, 0, "F0_L0", CampaignNodeType.Combat, "Frontier Skirmish", 10);
+            f0_l0.Biome = BiomeType.RuinedCity;
+            f0_l0.Mission = MissionType.Assault;
             f0_l0.NextNodeIds.Add("F1_L0");
             f0_l0.NextNodeIds.Add("F1_L1");
             run.Nodes.Add(f0_l0);
 
-            // Floor 1: 2 nodes (L0 Combat, L1 Event hoặc Recovery theo seed)
-            CampaignNodeType f1l1Type = (rng.Next(2) == 0) ? CampaignNodeType.Event : CampaignNodeType.Recovery;
-            string f1l1Title = f1l1Type == CampaignNodeType.Event ? "Deserted Cache" : "Camp Haven";
+            // Floor 1: 2 nodes (L0 Combat, L1 Shop hoặc Event theo seed) - RuinedCity
+            CampaignNodeType f1l1Type = (rng.Next(2) == 0) ? CampaignNodeType.Shop : CampaignNodeType.Event;
+            string f1l1Title = f1l1Type == CampaignNodeType.Shop ? "Black Market Armory" : "Deserted Cache";
 
             var f1_l0 = new CampaignNode(1, 0, "F1_L0", CampaignNodeType.Combat, "Outpost Ambush", 25);
+            f1_l0.Biome = BiomeType.RuinedCity;
+            f1_l0.Mission = MissionType.Assault;
             f1_l0.Modifier = GetRandomWorldModifier(rng);
             f1_l0.NextNodeIds.Add("F2_L0");
             f1_l0.NextNodeIds.Add("F2_L1");
             run.Nodes.Add(f1_l0);
 
             var f1_l1 = new CampaignNode(1, 1, "F1_L1", f1l1Type, f1l1Title, 15);
+            f1_l1.Biome = BiomeType.RuinedCity;
             f1_l1.NextNodeIds.Add("F2_L0");
             f1_l1.NextNodeIds.Add("F2_L1");
             run.Nodes.Add(f1_l1);
 
-            // Floor 2: 2 nodes (L0 EliteCombat, L1 Combat)
+            // Floor 2: 2 nodes (L0 EliteCombat Assault, L1 Combat Survival) - IndustrialZone
             var f2_l0 = new CampaignNode(2, 0, "F2_L0", CampaignNodeType.EliteCombat, "Heavy Guard Patrol", 50);
+            f2_l0.Biome = BiomeType.IndustrialZone;
+            f2_l0.Mission = MissionType.Assault;
             f2_l0.Modifier = GetRandomWorldModifier(rng);
             f2_l0.NextNodeIds.Add("F3_L0");
             f2_l0.NextNodeIds.Add("F3_L1");
             run.Nodes.Add(f2_l0);
 
-            var f2_l1 = new CampaignNode(2, 1, "F2_L1", CampaignNodeType.Combat, "Barricade Assault", 35);
+            var f2_l1 = new CampaignNode(2, 1, "F2_L1", CampaignNodeType.Combat, "Industrial Siege Holdout", 35);
+            f2_l1.Biome = BiomeType.IndustrialZone;
+            f2_l1.Mission = MissionType.Survival;
+            f2_l1.SurvivalTargetTurns = 5;
             f2_l1.Modifier = GetRandomWorldModifier(rng);
             f2_l1.NextNodeIds.Add("F3_L0");
             f2_l1.NextNodeIds.Add("F3_L1");
             run.Nodes.Add(f2_l1);
 
-            // Floor 3: 2 nodes (L0 Recovery, L1 EliteCombat)
+            // Floor 3: 2 nodes (L0 Recovery, L1 EliteCombat Elimination) - LabComplex
             var f3_l0 = new CampaignNode(3, 0, "F3_L0", CampaignNodeType.Recovery, "Sanctuary Springs", 20);
+            f3_l0.Biome = BiomeType.LabComplex;
+            f3_l0.Mission = MissionType.Assault;
             f3_l0.NextNodeIds.Add("F4_L0");
             run.Nodes.Add(f3_l0);
 
-            var f3_l1 = new CampaignNode(3, 1, "F3_L1", CampaignNodeType.EliteCombat, "Warden's Vanguard", 65);
+            var f3_l1 = new CampaignNode(3, 1, "F3_L1", CampaignNodeType.EliteCombat, "Lab Commander Hunt", 65);
+            f3_l1.Biome = BiomeType.LabComplex;
+            f3_l1.Mission = MissionType.Elimination;
             f3_l1.Modifier = GetRandomWorldModifier(rng);
             f3_l1.NextNodeIds.Add("F4_L0");
             run.Nodes.Add(f3_l1);
 
-            // Floor 4: 1 Boss node ("The Warden" GDD Section 38)
+            // Floor 4: 1 Boss node ("The Warden" GDD Section 38) - LabComplex
             var f4_l0 = new CampaignNode(4, 0, "F4_L0", CampaignNodeType.Boss, "The Warden's Stronghold", 100);
+            f4_l0.Biome = BiomeType.LabComplex;
+            f4_l0.Mission = MissionType.Assault;
             f4_l0.Modifier = GetRandomWorldModifier(rng);
             run.Nodes.Add(f4_l0);
 
@@ -288,7 +305,8 @@ namespace CrownlessWarband.Core.Roguelite
                 CurrentPhase = TurnPhase.Planning,
                 PlayerSquadStrategy = SquadStrategyType.Balanced,
                 EnemySquadStrategy = (node.NodeType == CampaignNodeType.Boss) ? SquadStrategyType.DirectAssault : SquadStrategyType.Balanced,
-                ActiveModifier = node.Modifier
+                ActiveModifier = node.Modifier,
+                ActiveBiome = node.Biome
             };
 
             // Kiểm tra xem có đồng minh nào còn sống không
@@ -349,7 +367,88 @@ namespace CrownlessWarband.Core.Roguelite
                 SpawnStandardCombatEncounter(battle, run.CorruptionLevel);
             }
 
+            ConfigureBattleMission(battle, node.Mission, node.SurvivalTargetTurns);
+
+            // Áp dụng độ khó thích ứng theo hồ sơ hành vi người chơi (Adaptive Difficulty - GDD Section 42)
+            if (run.BehaviorProfile != null && run.BehaviorProfile.TotalBattlesRecorded > 0)
+            {
+                SquadStrategyType counterStrat = run.BehaviorProfile.GetRecommendedCounterStrategy(out EnemyAffixType counterAffix, out string reason);
+                if (node.NodeType != CampaignNodeType.Boss)
+                {
+                    battle.EnemySquadStrategy = counterStrat;
+                }
+
+                if (counterAffix != EnemyAffixType.None)
+                {
+                    for (int i = 0; i < battle.Units.Count; i++)
+                    {
+                        var u = battle.Units[i];
+                        if (u != null && u.Team == TeamSide.Enemy && u.IsAlive && u.Affix == EnemyAffixType.None && u.BossPhase == 0)
+                        {
+                            u.Affix = counterAffix;
+                            if (counterAffix == EnemyAffixType.Armored)
+                            {
+                                u.Defense += 6;
+                                u.Shield += 30;
+                            }
+                            u.Name = $"[{counterAffix}] " + u.Name;
+                            break;
+                        }
+                    }
+                }
+
+                battle.AppendLog($"[Adaptive Difficulty] {reason}");
+            }
+
             return battle;
+        }
+
+        public static void ConfigureBattleMission(BattleState battle, MissionType mission, int survivalTurns = 5)
+        {
+            if (battle == null) return;
+
+            battle.Mission = mission;
+            battle.SurvivalTargetTurns = survivalTurns > 0 ? survivalTurns : 5;
+            battle.PriorityObjectiveUnitId = null;
+
+            for (int i = 0; i < battle.Units.Count; i++)
+            {
+                var u = battle.Units[i];
+                if (u == null) continue;
+                u.IsPriorityObjective = false;
+                if (u.Name != null && u.Name.StartsWith("[VIP] ", StringComparison.Ordinal))
+                {
+                    u.Name = u.Name.Substring(6);
+                }
+            }
+
+            if (mission == MissionType.Elimination)
+            {
+                UnitState vipCandidate = null;
+                for (int i = 0; i < battle.Units.Count; i++)
+                {
+                    var u = battle.Units[i];
+                    if (u == null || u.Team != TeamSide.Enemy || !u.IsAlive) continue;
+
+                    if (vipCandidate == null ||
+                        u.BossPhase > vipCandidate.BossPhase ||
+                        (u.Role == UnitRole.Mage && vipCandidate.Role != UnitRole.Mage) ||
+                        (u.BaseThreat > vipCandidate.BaseThreat && vipCandidate.Role != UnitRole.Mage))
+                    {
+                        vipCandidate = u;
+                    }
+                }
+
+                if (vipCandidate != null)
+                {
+                    vipCandidate.IsPriorityObjective = true;
+                    battle.PriorityObjectiveUnitId = vipCandidate.InstanceId;
+                    if (vipCandidate.Name != null && !vipCandidate.Name.StartsWith("[VIP] ", StringComparison.Ordinal))
+                    {
+                        vipCandidate.Name = "[VIP] " + vipCandidate.Name;
+                    }
+                }
+            }
         }
 
         /// <summary>
@@ -413,6 +512,8 @@ namespace CrownlessWarband.Core.Roguelite
         {
             if (run == null || node == null) return string.Empty;
 
+            string outcome = string.Empty;
+
             if (node.NodeType == CampaignNodeType.Recovery)
             {
                 for (int i = 0; i < run.PlayerRoster.Count; i++)
@@ -436,29 +537,60 @@ namespace CrownlessWarband.Core.Roguelite
 
                 run.CorruptionLevel = Math.Max(0, run.CorruptionLevel - 10);
                 node.IsCompleted = true;
-                return "Rested at Sanctuary: All allies restored +40% HP (fallen allies revived at 30% HP), Corruption -10%.";
+                outcome = "Rested at Sanctuary: All allies restored +40% HP (fallen allies revived at 30% HP), Corruption -10%.";
             }
             else if (node.NodeType == CampaignNodeType.Event)
             {
                 run.CorruptionLevel = Math.Min(100, run.CorruptionLevel + 15);
                 run.PendingRewards = GeneratePostBattleRewards(run.Seed, node.FloorIndex, run.CollectedRelics);
                 node.IsCompleted = true;
-                return "Explored Deserted Cache: Corruption +15%, discovered a Tactical Relic / Upgrade cache!";
+                outcome = "Explored Deserted Cache: Corruption +15%, discovered a Tactical Relic / Upgrade cache!";
+            }
+            else if (node.NodeType == CampaignNodeType.Shop)
+            {
+                for (int i = 0; i < run.PlayerRoster.Count; i++)
+                {
+                    var unit = run.PlayerRoster[i];
+                    if (unit.IsAlive)
+                    {
+                        int heal = Math.Max(1, (int)(unit.MaxHP * 0.20f));
+                        unit.CurrentHP = Math.Min(unit.MaxHP, unit.CurrentHP + heal);
+                    }
+                }
+
+                run.PendingRewards = GeneratePostBattleRewards(run.Seed + 33, node.FloorIndex, run.CollectedRelics);
+                node.IsCompleted = true;
+                outcome = "Visited Black Market Armory: Restored +20% HP and opened Tactical Supply Selection!";
             }
 
-            return string.Empty;
+            // Nếu đang ở chế độ Endless và node vừa hoàn thành chưa có tầng tiếp theo -> tự động sinh tầng Endless mới
+            if (node.IsCompleted && run.EndlessFloorDepth > 0 && node.NextNodeIds.Count == 0)
+            {
+                AdvanceToNextEndlessFloor(run);
+            }
+
+            return outcome;
         }
 
         /// <summary>
         /// Ghi nhận chiến thắng một Node chiến đấu, cập nhật tiến trình và tạo phần thưởng sau trận.
         /// </summary>
-        public static void CompleteNodeVictory(RunState run, CampaignNode node)
+        public static void CompleteNodeVictory(RunState run, CampaignNode node, BattleState completedBattle = null)
         {
             if (run == null || node == null) return;
 
             node.IsCompleted = true;
             run.BattlesWon++;
             run.CorruptionLevel = Math.Min(100, run.CorruptionLevel + 15);
+
+            if (completedBattle != null)
+            {
+                if (run.BehaviorProfile == null)
+                {
+                    run.BehaviorProfile = new PlayerBehaviorProfile();
+                }
+                run.BehaviorProfile.RecordBattleTelemetry(completedBattle);
+            }
 
             // Tự động hồi phục 15% Max HP cho toàn bộ unit người chơi còn sống sau mỗi trận thắng
             for (int i = 0; i < run.PlayerRoster.Count; i++)
@@ -471,13 +603,106 @@ namespace CrownlessWarband.Core.Roguelite
                 }
             }
 
-            if (node.NodeType == CampaignNodeType.Boss)
+            if (node.NodeType == CampaignNodeType.Boss && node.FloorIndex == 4 && run.EndlessFloorDepth == 0)
             {
+                // Đánh bại Boss Tầng 4 lần đầu tiên: hoàn thành chiến dịch chính, chờ người chơi bấm vào Endless Mode
                 run.IsRunCompleted = true;
             }
             else
             {
+                // Mọi trận thắng khác (bao gồm cả các tầng Endless 5+ và Boss Endless ở tầng 7, 10, 13...) đều nhận phần thưởng
                 run.PendingRewards = GeneratePostBattleRewards(run.Seed, node.FloorIndex, run.CollectedRelics);
+
+                // Nếu đang ở Endless Mode và vừa hoàn thành tầng cao nhất hiện tại -> tự động sinh ngay tầng Endless kế tiếp!
+                if (run.EndlessFloorDepth > 0 && node.NextNodeIds.Count == 0)
+                {
+                    AdvanceToNextEndlessFloor(run);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Mở rộng bản đồ sang tầng Endless tiếp theo sau khi đánh bại Boss Tầng 4 (GDD Section 40).
+        /// </summary>
+        public static CampaignNode AdvanceToNextEndlessFloor(RunState run)
+        {
+            if (run == null) return null;
+
+            int currentMaxFloor = 4;
+            for (int i = 0; i < run.Nodes.Count; i++)
+            {
+                if (run.Nodes[i].FloorIndex > currentMaxFloor)
+                {
+                    currentMaxFloor = run.Nodes[i].FloorIndex;
+                }
+            }
+
+            int nextFloor = currentMaxFloor + 1;
+            run.EndlessFloorDepth = nextFloor - 4;
+            run.IsRunCompleted = false;
+            run.CorruptionLevel = Math.Min(100, run.CorruptionLevel + 15);
+
+            var rng = new System.Random(run.Seed + (nextFloor * 7919));
+            BiomeType floorBiome = (BiomeType)(nextFloor % 3);
+            int baseThreat = 100 + (run.EndlessFloorDepth * 25);
+
+            bool isEndlessBossFloor = (run.EndlessFloorDepth % 3 == 0);
+            CampaignNode firstNewNode;
+
+            if (isEndlessBossFloor)
+            {
+                string bossId = $"F{nextFloor}_L0";
+                firstNewNode = new CampaignNode(nextFloor, 0, bossId, CampaignNodeType.Boss, $"Endless Warden Mutation #{run.EndlessFloorDepth / 3}", baseThreat + 30)
+                {
+                    Biome = floorBiome,
+                    Mission = MissionType.Assault,
+                    Modifier = GetRandomWorldModifier(rng)
+                };
+                LinkPreviousFloorToNode(run, nextFloor - 1, bossId);
+                run.Nodes.Add(firstNewNode);
+            }
+            else
+            {
+                string l0Id = $"F{nextFloor}_L0";
+                string l1Id = $"F{nextFloor}_L1";
+
+                MissionType l0Mission = (run.EndlessFloorDepth % 2 == 1) ? MissionType.Elimination : MissionType.Survival;
+                var nodeL0 = new CampaignNode(nextFloor, 0, l0Id, CampaignNodeType.EliteCombat, $"Endless Sector {nextFloor}-A", baseThreat)
+                {
+                    Biome = floorBiome,
+                    Mission = l0Mission,
+                    SurvivalTargetTurns = 5,
+                    Modifier = GetRandomWorldModifier(rng)
+                };
+
+                CampaignNodeType l1Type = (rng.Next(2) == 0) ? CampaignNodeType.Shop : CampaignNodeType.Recovery;
+                string l1Title = l1Type == CampaignNodeType.Shop ? $"Endless Black Market {nextFloor}" : $"Endless Sanctuary {nextFloor}";
+                var nodeL1 = new CampaignNode(nextFloor, 1, l1Id, l1Type, l1Title, baseThreat - 20)
+                {
+                    Biome = floorBiome,
+                    Mission = MissionType.Assault
+                };
+
+                LinkPreviousFloorToNode(run, nextFloor - 1, l0Id);
+                LinkPreviousFloorToNode(run, nextFloor - 1, l1Id);
+
+                run.Nodes.Add(nodeL0);
+                run.Nodes.Add(nodeL1);
+                firstNewNode = nodeL0;
+            }
+
+            return firstNewNode;
+        }
+
+        private static void LinkPreviousFloorToNode(RunState run, int prevFloor, string targetNodeId)
+        {
+            for (int i = 0; i < run.Nodes.Count; i++)
+            {
+                var n = run.Nodes[i];
+                if (n.FloorIndex == prevFloor && !n.NextNodeIds.Contains(targetNodeId))
+                {
+                    n.NextNodeIds.Add(targetNodeId);
+                }
             }
         }
 

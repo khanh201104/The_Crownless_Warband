@@ -164,6 +164,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: cf3efed1e0ef8b040b05fb5de92a4fc1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: CrownlessWarband.Presentation::CrownlessWarband.Presentation.BattleView.BattleSandboxController
+  contentDatabase: {fileID: 11400000, guid: d985cee0409b1f6479646fb9ab2d46df, type: 2}
   ScreenMode: 1
 --- !u!4 &477261827
 Transform:

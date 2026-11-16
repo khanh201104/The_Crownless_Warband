@@ -73,4 +73,24 @@ namespace CrownlessWarband.Core.Battle
         Berserker,      // +30% Attack khi HP < 50%
         Regenerator     // Hồi 8% MaxHP vào cuối mỗi turn
     }
+
+    /// <summary>
+    /// Loại Nhiệm vụ Chiến đấu (Mission Objectives - GDD Section 37).
+    /// </summary>
+    public enum MissionType
+    {
+        Assault = 0,        // Tiêu diệt toàn bộ kẻ địch
+        Survival = 1,       // Sống sót qua N lượt (SurvivalTargetTurns)
+        Elimination = 2     // Hạ gục mục tiêu chỉ huy VIP (IsPriorityObjective)
+    }
+
+    /// <summary>
+    /// Khu vực Chiến dịch (Biomes - GDD Section 32).
+    /// </summary>
+    public enum BiomeType
+    {
+        RuinedCity = 0,     // Thành phố đổ nát (Urban / Scavenger)
+        IndustrialZone = 1, // Khu công nghiệp (Machine / Hazard)
+        LabComplex = 2      // Khu thí nghiệm (Mutant / Unstable)
+    }
 }

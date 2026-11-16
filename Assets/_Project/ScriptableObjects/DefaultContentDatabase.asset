@@ -1,0 +1,40 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 20fcce2a060ca0d4191ac56c576bc751, type: 3}
+  m_Name: DefaultContentDatabase
+  m_EditorClassIdentifier: CrownlessWarband.Data::CrownlessWarband.Data.ContentDatabaseSO
+  PlayerUnits:
+  - {fileID: 11400000, guid: b2eb6d613e50b484d9d62f0382e40c5d, type: 2}
+  - {fileID: 11400000, guid: c3a7068b5da72b040b67500e8a94aad2, type: 2}
+  - {fileID: 11400000, guid: d0fe7195bdfb12c488a8d8bc87123d5e, type: 2}
+  - {fileID: 11400000, guid: 1566cdbcc25d3464988d694b52036816, type: 2}
+  - {fileID: 11400000, guid: 022e029afc41c6f478506fa92b9f6f09, type: 2}
+  EnemyUnits:
+  - {fileID: 11400000, guid: c8298e6375e490f428549ef532d75eab, type: 2}
+  AllSkills:
+  - {fileID: 11400000, guid: 467ab3e88354fe64eb8b9e80fb04d621, type: 2}
+  - {fileID: 11400000, guid: a1c6f86063b19e3458ad5ff021b97494, type: 2}
+  - {fileID: 11400000, guid: 75c3daa2dee7aa848b61aed9dd559010, type: 2}
+  - {fileID: 11400000, guid: cca3277d1083dc147af87f5a70269c10, type: 2}
+  - {fileID: 11400000, guid: e521819fa5e8c9b4fa94d1e0491592c0, type: 2}
+  - {fileID: 11400000, guid: 7d3cbf41a668c124d88dd1fd80337a81, type: 2}
+  - {fileID: 11400000, guid: 4dcdd9488d550d444a3924eb03ad9a24, type: 2}
+  - {fileID: 11400000, guid: f19373f59464dfd4c89e0e52269e55fb, type: 2}
+  - {fileID: 11400000, guid: 51e671ab29466ce40a1828352483a9a0, type: 2}
+  - {fileID: 11400000, guid: f6db2dd515557b64880d39281bb154e5, type: 2}
+  - {fileID: 11400000, guid: fd604f8d002fd4f4e9b623116026ed28, type: 2}
+  - {fileID: 11400000, guid: 4ecee4d97d165ce42ab4dab93bec1b73, type: 2}
+  - {fileID: 11400000, guid: e37a00b18c333524ead60cc48c369743, type: 2}
+  - {fileID: 11400000, guid: 35466a504f0fbea47830be39ce47ce79, type: 2}
+  - {fileID: 11400000, guid: 59e81a2e150b56f42831a0537616b08f, type: 2}
+  - {fileID: 11400000, guid: 1a474bfa45b5f294d9bb55e6eaf83eed, type: 2}
+  - {fileID: 11400000, guid: 7d3b03d4d04f7cd43a63e8d8bb7bb600, type: 2}

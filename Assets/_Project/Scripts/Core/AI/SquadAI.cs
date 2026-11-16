@@ -106,6 +106,17 @@ namespace CrownlessWarband.Core.AI
                 }
             }
 
+            bool enemyHasAliveVip = false;
+            for (int i = 0; i < aliveEnemies.Count; i++)
+            {
+                var enemy = aliveEnemies[i];
+                if (enemy.IsPriorityObjective || (!string.IsNullOrEmpty(state.PriorityObjectiveUnitId) && enemy.InstanceId == state.PriorityObjectiveUnitId))
+                {
+                    enemyHasAliveVip = true;
+                    break;
+                }
+            }
+
             // 3. Logic thích nghi chiến thuật (Mid-Battle AI Adaptation - GDD Mục 23 & 53)
             int lastChangeTurn = team == TeamSide.Player ? state.LastPlayerStrategyChangeTurn : state.LastEnemyStrategyChangeTurn;
             SquadStrategyType oldStrategy = team == TeamSide.Player ? state.PlayerSquadStrategy : state.EnemySquadStrategy;
@@ -123,8 +134,39 @@ namespace CrownlessWarband.Core.AI
 
             SquadStrategyType newStrategy = oldStrategy;
 
-            // Ưu tiên 1: Đội hình nguy kịch (< 40% HP trung bình) -> Chuyển sang phòng thủ
-            if (avgAllyHpPct < 0.40f)
+            // Điều phối chiến thuật theo loại Nhiệm vụ (Mission Objectives - GDD Section 37) cho phe Player
+            if (team == TeamSide.Player && state.Mission == MissionType.Survival)
+            {
+                if (avgAllyHpPct < 0.55f)
+                {
+                    newStrategy = SquadStrategyType.Defensive;
+                }
+                else if (hasAliveGuardian && (allyBacklineInDanger || enemyHasBacklineDiver || avgAllyHpPct < 0.75f))
+                {
+                    newStrategy = SquadStrategyType.ProtectBackline;
+                }
+                else
+                {
+                    newStrategy = SquadStrategyType.Balanced;
+                }
+            }
+            else if (team == TeamSide.Player && state.Mission == MissionType.Elimination && enemyHasAliveVip)
+            {
+                if (avgAllyHpPct < 0.40f)
+                {
+                    newStrategy = SquadStrategyType.Defensive;
+                }
+                else if (hasAliveGuardian && allyBacklineInDanger)
+                {
+                    newStrategy = SquadStrategyType.ProtectBackline;
+                }
+                else
+                {
+                    newStrategy = SquadStrategyType.FocusFire;
+                }
+            }
+            // Ưu tiên 1 (Assault / Enemy): Đội hình nguy kịch (< 40% HP trung bình) -> Chuyển sang phòng thủ
+            else if (avgAllyHpPct < 0.40f)
             {
                 newStrategy = SquadStrategyType.Defensive;
             }
@@ -221,7 +263,14 @@ namespace CrownlessWarband.Core.AI
                     break;
 
                 case SquadStrategyType.FocusFire:
-                    if (candidateTarget.IsMarked || candidateTarget.HPPercentage < 0.4f)
+                    bool isVipTarget = state.Mission == MissionType.Elimination &&
+                                       (candidateTarget.IsPriorityObjective ||
+                                        (!string.IsNullOrEmpty(state.PriorityObjectiveUnitId) && candidateTarget.InstanceId == state.PriorityObjectiveUnitId));
+                    if (isVipTarget)
+                    {
+                        bonus += 35f;
+                    }
+                    else if (candidateTarget.IsMarked || candidateTarget.HPPercentage < 0.4f)
                     {
                         bonus += 30f;
                     }

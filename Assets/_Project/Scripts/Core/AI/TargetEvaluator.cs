@@ -26,6 +26,17 @@ namespace CrownlessWarband.Core.AI
             // 2. StrategicValueScore: Giá trị chiến lược (Healer hoặc DPS chủ lực)
             float strategicValueScore = (target.Role == UnitRole.Medic || target.Role == UnitRole.Mage || target.Role == UnitRole.Ranger) ? 25f : 10f;
 
+            // Cộng điểm mục tiêu chiến lược VIP khi thực hiện nhiệm vụ Elimination (GDD Section 37)
+            if (state.Mission == MissionType.Elimination && actor.Team == TeamSide.Player)
+            {
+                bool isVip = target.IsPriorityObjective ||
+                             (!string.IsNullOrEmpty(state.PriorityObjectiveUnitId) && target.InstanceId == state.PriorityObjectiveUnitId);
+                if (isVip)
+                {
+                    strategicValueScore += 45f;
+                }
+            }
+
             // 3. KillProbabilityScore: Khả năng dứt điểm mục tiêu
             int estimatedDamage = CombatResolver.CalculateDamage(state, actor, skill, target);
             int effectiveHp = target.CurrentHP + target.Shield;

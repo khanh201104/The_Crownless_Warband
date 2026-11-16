@@ -1,8 +1,11 @@
 <Project>
   <PropertyGroup>
     <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
+    <FrameworkPathOverride>C:/Program Files/Unity/Hub/Editor/6000.3.21f1/Editor/Data/NetStandard/compat/2.1.0/shims/netfx</FrameworkPathOverride>
     <!-- Suppress Unity-specific false positives -->
     <!-- IDE0051: Remove unused private members (Unity messages like Start, Update) -->
     <!-- IDE0044: Add readonly modifier (serialized fields) -->
+    <!-- CS0436: Type conflicts with imported type when Unity csproj references ScriptAssemblies -->
+    <NoWarn>$(NoWarn);0169;0436</NoWarn>
   </PropertyGroup>
 </Project>

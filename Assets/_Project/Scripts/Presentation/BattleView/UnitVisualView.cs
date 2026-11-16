@@ -69,6 +69,21 @@ namespace CrownlessWarband.Presentation.BattleView
         private float _shieldBarY;
         private float _energyBarY;
 
+        // Trạng thái hiển thị từng bước (Step-by-Step Playback Snapshot)
+        private int _displayHp;
+        private int _displayMaxHp = 1;
+        private int _displayShield;
+        private int _displayEnergy;
+        private int _displayMaxEnergy = 100;
+        private bool _displayStun;
+        private bool _displayMark;
+        private bool _displayProt;
+        private bool _displayVip;
+        private int _displayBossPhase;
+        private float _deathFadeTimer;
+        private const float DeathFadeDuration = 0.35f;
+        private UnitState _lastSyncedUnit;
+
         // Cache dữ liệu hiển thị OnGUI để tránh cấp phát chuỗi mỗi frame
         private string _cachedLabelText = string.Empty;
         private string _cachedShadowText = string.Empty;
@@ -78,6 +93,7 @@ namespace CrownlessWarband.Presentation.BattleView
         private bool _lastStun;
         private bool _lastMark;
         private bool _lastProt;
+        private bool _lastVip;
         private int _lastBossPhase = -1;
         private EnemyAffixType _lastAffix = EnemyAffixType.None;
         private string _lastName;
@@ -154,7 +170,6 @@ namespace CrownlessWarband.Presentation.BattleView
             SetupBarSprites(defaultSquareSprite, unit.Team);
 
             _hasInitialPosition = false;
-            _isAlive = unit.IsAlive;
             _isSelected = false;
             _isActingUnit = false;
             _lungeTimer = 0f;
@@ -162,18 +177,136 @@ namespace CrownlessWarband.Presentation.BattleView
             _shakeTimer = 0f;
             _pulseTimer = 0f;
             _flashTimer = 0f;
+            _lastSyncedUnit = unit;
+            SnapshotFromUnitState(unit);
             _lastHp = -1; // Ép dựng lại overhead label lần đầu
         }
 
-        public void SyncFromState(UnitState unit, Vector3 targetWorldPos, bool isSelected)
+        public void SnapshotFromUnitState(UnitState unit)
+        {
+            if (unit == null) return;
+            _lastSyncedUnit = unit;
+            _displayHp = unit.CurrentHP;
+            _displayMaxHp = Mathf.Max(1, unit.MaxHP);
+            _displayShield = unit.Shield;
+            _displayEnergy = unit.CurrentEnergy;
+            _displayMaxEnergy = Mathf.Max(1, unit.MaxEnergy);
+            _displayStun = unit.IsStunned;
+            _displayMark = unit.IsMarked;
+            _displayProt = !string.IsNullOrEmpty(unit.ProtectingAllyId);
+            _displayVip = unit.IsPriorityObjective;
+            _displayBossPhase = unit.BossPhase;
+            _isAlive = _displayHp > 0;
+            _deathFadeTimer = 0f;
+        }
+
+        public void ApplyVisualSkillUsed(int energyCost, int energyGain = 15)
+        {
+            if (energyCost > 0)
+            {
+                _displayEnergy = Mathf.Max(0, _displayEnergy - energyCost);
+            }
+            else
+            {
+                _displayEnergy = Mathf.Min(_displayMaxEnergy, _displayEnergy + energyGain);
+            }
+            RefreshDisplayedBarsAndLabel();
+        }
+
+        public void ApplyVisualDamage(int damageAmount)
+        {
+            if (damageAmount <= 0) return;
+            int rem = damageAmount;
+            if (_displayShield > 0)
+            {
+                int absorbed = Mathf.Min(_displayShield, rem);
+                _displayShield -= absorbed;
+                rem -= absorbed;
+            }
+            if (rem > 0)
+            {
+                _displayHp = Mathf.Max(0, _displayHp - rem);
+            }
+            _displayEnergy = Mathf.Min(_displayMaxEnergy, _displayEnergy + 10);
+            RefreshDisplayedBarsAndLabel();
+        }
+
+        public void ApplyVisualHeal(int healAmount)
+        {
+            if (healAmount <= 0 || !_isAlive) return;
+            _displayHp = Mathf.Min(_displayMaxHp, _displayHp + healAmount);
+            RefreshDisplayedBarsAndLabel();
+        }
+
+        public void ApplyVisualShield(int shieldAmount)
+        {
+            if (shieldAmount <= 0 || !_isAlive) return;
+            _displayShield += shieldAmount;
+            RefreshDisplayedBarsAndLabel();
+        }
+
+        public void ApplyVisualStatus(string statusDescription)
+        {
+            if (string.IsNullOrEmpty(statusDescription)) return;
+            if (statusDescription.IndexOf("Stunned and skips", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                _displayStun = false;
+            }
+            else if (statusDescription.IndexOf("stun", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                _displayStun = true;
+            }
+            if (statusDescription.IndexOf("mark", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                _displayMark = true;
+            }
+            if (statusDescription.IndexOf("protect", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                statusDescription.IndexOf("guard", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                _displayProt = true;
+            }
+            if (statusDescription.IndexOf("PHASE 2", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                _displayBossPhase = 2;
+            }
+            else if (statusDescription.IndexOf("PHASE 3", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                _displayBossPhase = 3;
+            }
+            if (statusDescription.IndexOf("+15 Energy", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                _displayEnergy = Mathf.Min(_displayMaxEnergy, _displayEnergy + 15);
+            }
+            RefreshDisplayedBarsAndLabel();
+        }
+
+        public void ApplyVisualDeath()
+        {
+            _displayHp = 0;
+            _displayShield = 0;
+            _displayEnergy = 0;
+            _displayStun = false;
+            _displayMark = false;
+            _displayProt = false;
+            _isAlive = false;
+            _deathFadeTimer = DeathFadeDuration;
+            RefreshDisplayedBarsAndLabel();
+        }
+
+        public void SyncFromState(UnitState unit, Vector3 targetWorldPos, bool isSelected, bool isPlaybackActive = false)
         {
             if (unit == null || !_isInitialized) return;
 
             UnitInstanceId = unit.InstanceId;
-            _isAlive = unit.IsAlive;
+            _lastSyncedUnit = unit;
             _isSelected = isSelected;
 
-            bool nowBoss = unit.BossPhase > 0 || unit.InstanceId == "e_boss_warden";
+            if (!isPlaybackActive)
+            {
+                SnapshotFromUnitState(unit);
+            }
+
+            bool nowBoss = _displayBossPhase > 0 || unit.BossPhase > 0 || unit.InstanceId == "e_boss_warden";
             if (nowBoss != _isBoss)
             {
                 _isBoss = nowBoss;
@@ -196,16 +329,26 @@ namespace CrownlessWarband.Presentation.BattleView
                 _baseWorldPos = Vector3.Lerp(_baseWorldPos, targetWorldPos, Time.deltaTime * 18f);
             }
 
-            float hpRatio = Mathf.Clamp01(unit.HPPercentage);
-            float shieldRatio = unit.MaxHP > 0 ? Mathf.Clamp01(unit.Shield / (float)unit.MaxHP) : 0f;
-            float energyRatio = unit.MaxEnergy > 0 ? Mathf.Clamp01(unit.CurrentEnergy / (float)unit.MaxEnergy) : 0f;
+            RefreshDisplayedBarsAndLabel();
+            ApplyProceduralVisuals();
+        }
+
+        private void RefreshDisplayedBarsAndLabel()
+        {
+            if (!_isInitialized) return;
+
+            float hpRatio = Mathf.Clamp01((float)_displayHp / Mathf.Max(1, _displayMaxHp));
+            float shieldRatio = Mathf.Clamp01((float)_displayShield / Mathf.Max(1, _displayMaxHp));
+            float energyRatio = Mathf.Clamp01((float)_displayEnergy / Mathf.Max(1, _displayMaxEnergy));
 
             UpdateBarFill(_hpFillRenderer, _hpBarY, HpBarHeight, hpRatio);
             UpdateBarFill(_shieldFillRenderer, _shieldBarY, ShieldBarHeight, shieldRatio);
             UpdateBarFill(_energyFillRenderer, _energyBarY, EnergyBarHeight, energyRatio);
 
-            UpdateCachedLabel(unit);
-            ApplyProceduralVisuals();
+            if (_lastSyncedUnit != null)
+            {
+                UpdateCachedLabel(_lastSyncedUnit);
+            }
         }
 
         public void SetActingTurnHighlight(bool isActing)
@@ -277,6 +420,7 @@ namespace CrownlessWarband.Presentation.BattleView
             if (_shakeTimer > 0f) _shakeTimer = Mathf.Max(0f, _shakeTimer - dt);
             if (_pulseTimer > 0f) _pulseTimer = Mathf.Max(0f, _pulseTimer - dt);
             if (_flashTimer > 0f) _flashTimer = Mathf.Max(0f, _flashTimer - dt);
+            if (_deathFadeTimer > 0f) _deathFadeTimer = Mathf.Max(0f, _deathFadeTimer - dt);
         }
 
         private void LateUpdate()
@@ -287,6 +431,27 @@ namespace CrownlessWarband.Presentation.BattleView
 
         private void ApplyProceduralVisuals()
         {
+            bool isDeadAndFadedOut = !_isAlive && _deathFadeTimer <= 0f;
+            if (isDeadAndFadedOut)
+            {
+                _bodyRenderer.enabled = false;
+                _selectionRingRenderer.enabled = false;
+                _hpBgRenderer.enabled = false;
+                _hpFillRenderer.enabled = false;
+                _shieldBgRenderer.enabled = false;
+                _shieldFillRenderer.enabled = false;
+                _energyBgRenderer.enabled = false;
+                _energyFillRenderer.enabled = false;
+                if (_collider != null) _collider.enabled = false;
+                return;
+            }
+
+            _bodyRenderer.enabled = true;
+            _hpBgRenderer.enabled = true;
+            _shieldBgRenderer.enabled = true;
+            _energyBgRenderer.enabled = true;
+            if (_collider != null) _collider.enabled = _isAlive;
+
             Vector3 offset = Vector3.zero;
 
             // 1. Attack Lunge
@@ -342,17 +507,20 @@ namespace CrownlessWarband.Presentation.BattleView
             }
             _bodyRenderer.transform.localScale = _baseBodyScale * scaleFactor;
 
-            // 5. Color Flash
-            Color baseColor = _isAlive ? _aliveBodyColor : new Color(0.25f, 0.25f, 0.25f, 0.45f);
+            // 5. Color Flash & Death Fade Alpha
+            Color baseColor = _isAlive ? _aliveBodyColor : new Color(0.25f, 0.25f, 0.25f, 0.85f);
             if (_flashTimer > 0f && _flashDuration > 0f)
             {
                 float blend = _flashTimer / _flashDuration;
-                _bodyRenderer.color = Color.Lerp(baseColor, _flashColor, blend * 0.85f);
+                baseColor = Color.Lerp(baseColor, _flashColor, blend * 0.85f);
             }
-            else
+
+            if (!_isAlive && _deathFadeTimer > 0f)
             {
-                _bodyRenderer.color = baseColor;
+                float alpha = _deathFadeTimer / DeathFadeDuration;
+                baseColor.a *= alpha;
             }
+            _bodyRenderer.color = baseColor;
 
             // 6. Active Turn Ring (Vàng) vs Selection Ring (Cyan)
             if (_isActingUnit)
@@ -382,7 +550,7 @@ namespace CrownlessWarband.Presentation.BattleView
 
         private void OnGUI()
         {
-            if (!IsVisibleOnBattlefield || string.IsNullOrEmpty(_cachedLabelText)) return;
+            if (!IsVisibleOnBattlefield || (!_isAlive && _deathFadeTimer <= 0f) || string.IsNullOrEmpty(_cachedLabelText)) return;
 
             Camera cam = Camera.main;
             if (cam == null) return;
@@ -460,27 +628,28 @@ namespace CrownlessWarband.Presentation.BattleView
 
         private void UpdateCachedLabel(UnitState unit)
         {
-            bool hasProt = !string.IsNullOrEmpty(unit.ProtectingAllyId);
-            if (_lastHp == unit.CurrentHP &&
-                _lastMaxHp == unit.MaxHP &&
-                _lastShield == unit.Shield &&
-                _lastStun == unit.IsStunned &&
-                _lastMark == unit.IsMarked &&
-                _lastProt == hasProt &&
-                _lastBossPhase == unit.BossPhase &&
+            if (_lastHp == _displayHp &&
+                _lastMaxHp == _displayMaxHp &&
+                _lastShield == _displayShield &&
+                _lastStun == _displayStun &&
+                _lastMark == _displayMark &&
+                _lastProt == _displayProt &&
+                _lastVip == _displayVip &&
+                _lastBossPhase == _displayBossPhase &&
                 _lastAffix == unit.Affix &&
                 _lastName == unit.Name)
             {
                 return;
             }
 
-            _lastHp = unit.CurrentHP;
-            _lastMaxHp = unit.MaxHP;
-            _lastShield = unit.Shield;
-            _lastStun = unit.IsStunned;
-            _lastMark = unit.IsMarked;
-            _lastProt = hasProt;
-            _lastBossPhase = unit.BossPhase;
+            _lastHp = _displayHp;
+            _lastMaxHp = _displayMaxHp;
+            _lastShield = _displayShield;
+            _lastStun = _displayStun;
+            _lastMark = _displayMark;
+            _lastProt = _displayProt;
+            _lastVip = _displayVip;
+            _lastBossPhase = _displayBossPhase;
             _lastAffix = unit.Affix;
             _lastName = unit.Name;
 
@@ -488,7 +657,7 @@ namespace CrownlessWarband.Presentation.BattleView
 
             // Dòng 1: Tên + Tag Role
             string roleTag = GetRoleShortTag(unit.Role);
-            if (!unit.IsAlive)
+            if (!_isAlive)
             {
                 _labelSb.Append("<color=#888888>").Append(unit.Name).Append(' ').Append(roleTag).Append("</color>\n");
             }
@@ -502,28 +671,29 @@ namespace CrownlessWarband.Presentation.BattleView
             }
 
             // Dòng 2: HP & Shield
-            if (!unit.IsAlive)
+            if (!_isAlive)
             {
                 _labelSb.Append("<color=#888888>DEAD</color>");
             }
             else
             {
-                _labelSb.Append(unit.CurrentHP).Append('/').Append(unit.MaxHP);
-                if (unit.Shield > 0)
+                _labelSb.Append(_displayHp).Append('/').Append(_displayMaxHp);
+                if (_displayShield > 0)
                 {
-                    _labelSb.Append(" <color=#66E0FF>(+").Append(unit.Shield).Append(")</color>");
+                    _labelSb.Append(" <color=#66E0FF>(+").Append(_displayShield).Append(")</color>");
                 }
             }
 
             // Dòng 3: Huy hiệu trạng thái nổi bật
-            bool hasAnyBadge = unit.IsStunned || unit.IsMarked || hasProt || unit.BossPhase > 0 || unit.Affix != EnemyAffixType.None;
+            bool hasAnyBadge = _displayVip || _displayStun || _displayMark || _displayProt || _displayBossPhase > 0 || unit.Affix != EnemyAffixType.None;
             if (hasAnyBadge)
             {
                 _labelSb.Append('\n');
-                if (unit.IsStunned) _labelSb.Append("<color=yellow>[STUN]</color> ");
-                if (unit.IsMarked) _labelSb.Append("<color=red>[MARK]</color> ");
-                if (hasProt) _labelSb.Append("<color=lime>[PROT]</color> ");
-                if (unit.BossPhase > 0) _labelSb.Append("<color=orange>[PHASE ").Append(unit.BossPhase).Append("]</color> ");
+                if (_displayVip) _labelSb.Append("<color=#FFD700>[VIP]</color> ");
+                if (_displayStun) _labelSb.Append("<color=yellow>[STUN]</color> ");
+                if (_displayMark) _labelSb.Append("<color=red>[MARK]</color> ");
+                if (_displayProt) _labelSb.Append("<color=lime>[PROT]</color> ");
+                if (_displayBossPhase > 0) _labelSb.Append("<color=orange>[PHASE ").Append(_displayBossPhase).Append("]</color> ");
                 if (unit.Affix != EnemyAffixType.None) _labelSb.Append("<color=magenta>[").Append(unit.Affix).Append("]</color>");
             }
 

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using CrownlessWarband.Core.AI;
 using CrownlessWarband.Core.Battle;
 
 namespace CrownlessWarband.Core.Roguelite
@@ -13,7 +14,8 @@ namespace CrownlessWarband.Core.Roguelite
         EliteCombat,
         Event,
         Recovery,
-        Boss
+        Boss,
+        Shop
     }
 
     /// <summary>
@@ -30,6 +32,9 @@ namespace CrownlessWarband.Core.Roguelite
         public int ThreatLevel;
         public bool IsCompleted;
         public WorldModifierType Modifier = WorldModifierType.None;
+        public BiomeType Biome = BiomeType.RuinedCity;
+        public MissionType Mission = MissionType.Assault;
+        public int SurvivalTargetTurns = 5;
         public List<string> NextNodeIds = new List<string>();
 
         public CampaignNode() { }
@@ -47,7 +52,7 @@ namespace CrownlessWarband.Core.Roguelite
 
         public override string ToString()
         {
-            return $"[{NodeId}] {Title} ({NodeType}, Threat: {ThreatLevel})";
+            return $"[{NodeId}] {Title} ({NodeType} | {Biome} | {Mission}, Threat: {ThreatLevel})";
         }
     }
 
@@ -65,6 +70,8 @@ namespace CrownlessWarband.Core.Roguelite
         public bool IsRunCompleted = false;
         public bool IsRunFailed = false;
         public string CurrentNodeId;
+        public int EndlessFloorDepth = 0; // Số tầng Endless đã mở rộng sau khi hạ Boss tầng 4 (GDD Section 40)
+        public PlayerBehaviorProfile BehaviorProfile = new PlayerBehaviorProfile(); // Hồ sơ hành vi người chơi (GDD Section 41)
 
         public List<CampaignNode> Nodes = new List<CampaignNode>();
         public List<UnitState> PlayerRoster = new List<UnitState>();

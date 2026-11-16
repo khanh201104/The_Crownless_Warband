@@ -1,0 +1,30 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cdd20da6b830a1849a64d4c836de4f11, type: 3}
+  m_Name: Guardian_SO
+  m_EditorClassIdentifier: CrownlessWarband.Data::CrownlessWarband.Data.UnitDataSO
+  CharacterId: p_guardian
+  UnitName: Guardian
+  DefaultTeam: 0
+  Role: 0
+  DefaultRow: 0
+  DefaultColumn: 0
+  MaxHP: 320
+  Attack: 28
+  Defense: 26
+  Speed: 11
+  BaseThreat: 20
+  DefaultAffix: 0
+  Skills:
+  - {fileID: 11400000, guid: 467ab3e88354fe64eb8b9e80fb04d621, type: 2}
+  - {fileID: 11400000, guid: a1c6f86063b19e3458ad5ff021b97494, type: 2}
+  - {fileID: 11400000, guid: 75c3daa2dee7aa848b61aed9dd559010, type: 2}

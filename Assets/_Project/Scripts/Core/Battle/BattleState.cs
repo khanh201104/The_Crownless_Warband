@@ -24,6 +24,11 @@ namespace CrownlessWarband.Core.Battle
         public int LastPlayerStrategyChangeTurn = -1;
         public int LastEnemyStrategyChangeTurn = -1;
 
+        public MissionType Mission = MissionType.Assault;
+        public int SurvivalTargetTurns = 5;
+        public string PriorityObjectiveUnitId = null;
+        public BiomeType ActiveBiome = BiomeType.RuinedCity;
+
         public List<UnitState> Units = new List<UnitState>();
         public List<RelicType> ActiveRelics = new List<RelicType>();
         public List<string> CombatLog = new List<string>();
@@ -115,6 +120,31 @@ namespace CrownlessWarband.Core.Battle
             if (!string.IsNullOrEmpty(evt.Description))
             {
                 AppendLog(evt.Description);
+            }
+        }
+
+        public string GetObjectiveSummary()
+        {
+            switch (Mission)
+            {
+                case MissionType.Survival:
+                    return $"SURVIVAL (Hold out for {SurvivalTargetTurns} Turns - Now: {CurrentTurn}/{SurvivalTargetTurns})";
+
+                case MissionType.Elimination:
+                    string vipName = "Enemy Commander";
+                    for (int i = 0; i < Units.Count; i++)
+                    {
+                        var u = Units[i];
+                        if (u != null && (u.IsPriorityObjective || (!string.IsNullOrEmpty(PriorityObjectiveUnitId) && u.InstanceId == PriorityObjectiveUnitId)))
+                        {
+                            vipName = u.Name;
+                            break;
+                        }
+                    }
+                    return $"ELIMINATION (Eliminate VIP: {vipName})";
+
+                default:
+                    return "ASSAULT (Eliminate all enemies)";
             }
         }
     }

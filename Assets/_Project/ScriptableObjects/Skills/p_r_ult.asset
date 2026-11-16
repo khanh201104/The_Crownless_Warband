@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b58fa49410714624b86c05c88a297cb7, type: 3}
+  m_Name: p_r_ult
+  m_EditorClassIdentifier: CrownlessWarband.Data::CrownlessWarband.Data.SkillDataSO
+  SkillId: p_r_ult
+  SkillName: Snipe Execute
+  Slot: 3
+  DefaultControlMode: 0
+  TargetType: 0
+  EffectType: 6
+  EnergyCost: 30
+  CooldownTurns: 3
+  PowerMultiplier: 2.2
+  CanTargetBackline: 1

@@ -6,6 +6,7 @@ using CrownlessWarband.Core.Battle;
 using CrownlessWarband.Core.Events;
 using CrownlessWarband.Core.Roguelite;
 using CrownlessWarband.Core.Save;
+using CrownlessWarband.Data;
 using UnityEngine;
 
 namespace CrownlessWarband.Presentation.BattleView
@@ -25,6 +26,9 @@ namespace CrownlessWarband.Presentation.BattleView
     /// </summary>
     public class BattleSandboxController : MonoBehaviour
     {
+        [Header("Data-Driven Content (GDD Section 34 & 47)")]
+        [SerializeField] private ContentDatabaseSO contentDatabase = null;
+
         public BattleState CurrentState { get; private set; }
         public RunState CurrentRun { get; private set; }
         public SandboxScreenMode ScreenMode = SandboxScreenMode.ActiveBattle;
@@ -37,6 +41,9 @@ namespace CrownlessWarband.Presentation.BattleView
         private Vector2 _teamListScrollPos = Vector2.zero;
         private bool _compactBattleHud = true;
         private CombatEventPresenter _eventPresenter;
+        private BattleAudioManager _audioManager;
+        private readonly List<UnitState> _turnOrderBuffer = new List<UnitState>(12);
+        private static readonly Comparison<UnitState> TurnOrderComparison = CompareTurnOrder;
 
         // Trạng thái cho Headless AI Batch Simulator
         private BatchSimulationResult _lastSimResult;
@@ -55,6 +62,7 @@ namespace CrownlessWarband.Presentation.BattleView
         private GUIStyle _logStyle;
         private GUIStyle _nodeStyle;
         private GUIStyle _rewardCardStyle;
+        private GUIStyle _turnPillStyle;
         private bool _stylesInitialized;
 
         private void Start()
@@ -80,12 +88,24 @@ namespace CrownlessWarband.Presentation.BattleView
                 _eventPresenter = gridView.gameObject.AddComponent<CombatEventPresenter>();
             }
 
+            _audioManager = FindFirstObjectByType<BattleAudioManager>();
+            if (_audioManager == null)
+            {
+                _audioManager = gridView.gameObject.AddComponent<BattleAudioManager>();
+            }
+
+            if (contentDatabase == null)
+            {
+                contentDatabase = ContentDatabaseSO.CreateRuntimeDefaultDatabase();
+            }
+
             if (CurrentRun == null)
             {
                 CurrentRun = CampaignGenerator.CreateNewRun(847291, CampaignGenerator.CreateDefaultPlayerWarband());
             }
 
             ResetScenario();
+            ApplyBiomeCameraTint();
         }
 
         private void Update()
@@ -110,6 +130,27 @@ namespace CrownlessWarband.Presentation.BattleView
         {
             SetupGDDSection53Scenario();
             TurnManager.StartPlanningPhase(CurrentState);
+            ApplyBiomeCameraTint();
+        }
+
+        private void ApplyBiomeCameraTint()
+        {
+            Camera cam = Camera.main;
+            if (cam == null) return;
+
+            BiomeType biome = CurrentState != null ? CurrentState.ActiveBiome : BiomeType.RuinedCity;
+            switch (biome)
+            {
+                case BiomeType.IndustrialZone:
+                    cam.backgroundColor = new Color(0.14f, 0.10f, 0.08f, 1f);
+                    break;
+                case BiomeType.LabComplex:
+                    cam.backgroundColor = new Color(0.08f, 0.13f, 0.12f, 1f);
+                    break;
+                default:
+                    cam.backgroundColor = new Color(0.09f, 0.11f, 0.15f, 1f);
+                    break;
+            }
         }
 
         public void RunAutoCombat()
@@ -134,6 +175,7 @@ namespace CrownlessWarband.Presentation.BattleView
                 if (_eventPresenter != null)
                 {
                     _eventPresenter.IsPaused = false;
+                    _eventPresenter.CapturePreTurnSnapshot(CurrentState);
                 }
                 TurnManager.ExecuteAutoCombatPhase(CurrentState);
             }
@@ -159,6 +201,13 @@ namespace CrownlessWarband.Presentation.BattleView
                 if (mage.CurrentEnergy < 40)
                 {
                     mage.CurrentEnergy = 40;
+                }
+
+                if (_eventPresenter == null) _eventPresenter = FindFirstObjectByType<CombatEventPresenter>();
+                if (_eventPresenter != null)
+                {
+                    _eventPresenter.IsPaused = false;
+                    _eventPresenter.CapturePreTurnSnapshot(CurrentState);
                 }
 
                 TurnManager.TryExecuteManualSkill(CurrentState, "p_mage", "p_m_ult", null);
@@ -212,7 +261,13 @@ namespace CrownlessWarband.Presentation.BattleView
             {
                 for (int i = 0; i < CurrentRun.PlayerRoster.Count; i++)
                 {
-                    CurrentState.Units.Add(CurrentRun.PlayerRoster[i]);
+                    var u = CurrentRun.PlayerRoster[i];
+                    u.CurrentHP = u.MaxHP;
+                    u.Shield = 0;
+                    u.IsStunned = false;
+                    u.IsMarked = false;
+                    u.ProtectingAllyId = null;
+                    CurrentState.Units.Add(u);
                 }
                 for (int i = 0; i < CurrentRun.CollectedRelics.Count; i++)
                 {
@@ -314,6 +369,15 @@ namespace CrownlessWarband.Presentation.BattleView
                 padding = new RectOffset(10, 10, 10, 10)
             };
 
+            _turnPillStyle = new GUIStyle(GUI.skin.box)
+            {
+                fontSize = 10,
+                fontStyle = FontStyle.Bold,
+                alignment = TextAnchor.MiddleCenter,
+                padding = new RectOffset(5, 5, 2, 2),
+                normal = { textColor = Color.white }
+            };
+
             _stylesInitialized = true;
         }
 
@@ -352,6 +416,72 @@ namespace CrownlessWarband.Presentation.BattleView
             }
 
             GUILayout.EndArea();
+
+            if (ScreenMode == SandboxScreenMode.ActiveBattle && CurrentState != null)
+            {
+                DrawTurnOrderOverlayBar();
+            }
+        }
+
+        private static int CompareTurnOrder(UnitState a, UnitState b)
+        {
+            int speedCmp = b.Speed.CompareTo(a.Speed);
+            if (speedCmp != 0) return speedCmp;
+            return a.Team.CompareTo(b.Team);
+        }
+
+        private void DrawTurnOrderOverlayBar()
+        {
+            _turnOrderBuffer.Clear();
+            for (int i = 0; i < CurrentState.Units.Count; i++)
+            {
+                var u = CurrentState.Units[i];
+                if (u != null && u.IsAlive)
+                {
+                    _turnOrderBuffer.Add(u);
+                }
+            }
+
+            if (_turnOrderBuffer.Count == 0) return;
+
+            _turnOrderBuffer.Sort(TurnOrderComparison);
+
+            float barWidth = Mathf.Min(540f, Screen.width * 0.40f);
+            Rect barRect = new Rect((Screen.width - barWidth) * 0.5f, 10f, barWidth, 42f);
+            string actingId = _eventPresenter != null ? _eventPresenter.CurrentActingUnitId : null;
+
+            GUI.backgroundColor = new Color(0.08f, 0.10f, 0.14f, 0.90f);
+            GUILayout.BeginArea(barRect, GUI.skin.box);
+            GUILayout.BeginHorizontal();
+
+            GUI.color = new Color(0.85f, 0.95f, 1f);
+            GUILayout.Label("<b>SPEED QUEUE:</b>", _logStyle, GUILayout.Width(86f));
+            GUI.color = Color.white;
+
+            for (int i = 0; i < _turnOrderBuffer.Count; i++)
+            {
+                var u = _turnOrderBuffer[i];
+                bool isActing = !string.IsNullOrEmpty(actingId) && u.InstanceId == actingId;
+
+                if (isActing)
+                {
+                    GUI.backgroundColor = Color.yellow;
+                }
+                else if (u.Team == TeamSide.Player)
+                {
+                    GUI.backgroundColor = new Color(0.20f, 0.72f, 0.95f, 0.92f);
+                }
+                else
+                {
+                    GUI.backgroundColor = new Color(0.92f, 0.28f, 0.28f, 0.92f);
+                }
+
+                GUILayout.Box($"{i + 1}.{u.Name}({u.Speed})", _turnPillStyle, GUILayout.Height(24f));
+            }
+
+            GUI.backgroundColor = Color.white;
+            GUILayout.EndHorizontal();
+            GUILayout.EndArea();
         }
 
         private void DrawTopGlobalBar()
@@ -364,8 +494,10 @@ namespace CrownlessWarband.Presentation.BattleView
                 ? string.Join(", ", CurrentRun.CollectedRelics)
                 : "None";
 
+            int totalFloorsDisplay = 4 + (CurrentRun != null ? CurrentRun.EndlessFloorDepth : 0);
+            string endlessTag = (CurrentRun != null && CurrentRun.EndlessFloorDepth > 0) ? " [ENDLESS]" : "";
             GUI.color = Color.yellow;
-            GUILayout.Label($"<b>SEED:</b> {CurrentRun?.Seed} | <b>Floor:</b> {CurrentRun?.CurrentFloor}/4 | <b>Corruption:</b> {CurrentRun?.CorruptionLevel}% | <b>Wins:</b> {CurrentRun?.BattlesWon} | <b>Modifier:</b> [{CurrentState?.ActiveModifier}]");
+            GUILayout.Label($"<b>SEED:</b> {CurrentRun?.Seed} | <b>Floor:</b> {CurrentRun?.CurrentFloor}/{totalFloorsDisplay}{endlessTag} | <b>Corruption:</b> {CurrentRun?.CorruptionLevel}% | <b>Wins:</b> {CurrentRun?.BattlesWon} | <b>Modifier:</b> [{CurrentState?.ActiveModifier}]");
             GUI.color = Color.white;
             GUILayout.EndHorizontal();
 
@@ -463,12 +595,25 @@ namespace CrownlessWarband.Presentation.BattleView
 
             GUILayout.Space(4);
 
+            var currentNode = CurrentRun?.GetCurrentNode();
+            if (CurrentRun != null && (CurrentRun.IsRunCompleted || (currentNode != null && currentNode.IsCompleted && currentNode.NextNodeIds.Count == 0)))
+            {
+                GUI.backgroundColor = new Color(1f, 0.72f, 0.20f);
+                if (GUILayout.Button("<b>[Unlock Next Endless Floor ->]</b>", GUILayout.Height(30)))
+                {
+                    CampaignGenerator.AdvanceToNextEndlessFloor(CurrentRun);
+                    _mapScrollPos = new Vector2(0f, 99999f);
+                    _saveStatusMsg = $"Unlocked Endless Floor {4 + CurrentRun.EndlessFloorDepth}!";
+                }
+                GUI.backgroundColor = Color.white;
+                GUILayout.Space(4);
+            }
+
             _mapScrollPos = GUILayout.BeginScrollView(_mapScrollPos, GUILayout.Height(210));
 
-            var currentNode = CurrentRun?.GetCurrentNode();
-
-            // Hiển thị danh sách 5 tầng
-            for (int f = 0; f <= 4; f++)
+            // Hiển thị danh sách các tầng (bao gồm các tầng Endless 5+ nếu đã mở khóa)
+            int maxFloor = 4 + (CurrentRun != null ? CurrentRun.EndlessFloorDepth : 0);
+            for (int f = 0; f <= maxFloor; f++)
             {
                 GUILayout.BeginHorizontal();
                 GUILayout.Label($"<b>Floor {f}:</b>", GUILayout.Width(65));
@@ -483,7 +628,13 @@ namespace CrownlessWarband.Presentation.BattleView
                     bool isStartSelectable = (f == 0 && !node.IsCompleted);
 
                     string modText = node.Modifier != WorldModifierType.None ? $" | {node.Modifier}" : "";
-                    string nodeLabel = $"{node.NodeId}: {node.Title}\n[{node.NodeType}{modText}]";
+                    bool isCombatNode = node.NodeType == CampaignNodeType.Combat ||
+                                        node.NodeType == CampaignNodeType.EliteCombat ||
+                                        node.NodeType == CampaignNodeType.Boss;
+                    string nodeMeta = isCombatNode
+                        ? $"[{node.NodeType} | {node.Biome} | {node.Mission}{modText}]"
+                        : $"[{node.NodeType} | {node.Biome}]";
+                    string nodeLabel = $"{node.NodeId}: {node.Title}\n{nodeMeta}";
                     if (node.IsCompleted) nodeLabel += " (DONE)";
 
                     if (isCurrent)
@@ -519,7 +670,22 @@ namespace CrownlessWarband.Presentation.BattleView
 
             GUILayout.EndScrollView();
 
-            GUILayout.Space(8);
+            GUILayout.Space(6);
+
+            // Hồ sơ hành vi người chơi & dự báo chiến thuật thích ứng (GDD Sections 41 & 42)
+            if (CurrentRun != null && CurrentRun.BehaviorProfile != null)
+            {
+                var profile = CurrentRun.BehaviorProfile;
+                SquadStrategyType nextCounterStrat = profile.GetRecommendedCounterStrategy(out EnemyAffixType nextCounterAffix, out string adaptReason);
+                GUILayout.BeginVertical(GUI.skin.box);
+                GUI.color = new Color(0.55f, 0.92f, 1f);
+                GUILayout.Label($"<b>[PLAYER BEHAVIOR PROFILE]</b> {profile.GetProfileSummary()}", _logStyle);
+                GUI.color = new Color(1f, 0.78f, 0.35f);
+                GUILayout.Label($"<b>[ADAPTIVE AI FORECAST]</b> {adaptReason} (Strategy: {nextCounterStrat}, Affix: {nextCounterAffix})", _logStyle);
+                GUI.color = Color.white;
+                GUILayout.EndVertical();
+                GUILayout.Space(4);
+            }
 
             // Bảng cấu hình Player AI Policy (GDD Section 19)
             GUILayout.Label("=== PLAYER-CONFIGURABLE AI POLICY EDITOR (GDD Section 19) ===", _headerStyle);
@@ -573,10 +739,17 @@ namespace CrownlessWarband.Presentation.BattleView
             CurrentRun.CurrentNodeId = node.NodeId;
             CurrentRun.CurrentFloor = node.FloorIndex;
 
-            if (node.NodeType == CampaignNodeType.Recovery || node.NodeType == CampaignNodeType.Event)
+            if (node.NodeType == CampaignNodeType.Recovery ||
+                node.NodeType == CampaignNodeType.Event ||
+                node.NodeType == CampaignNodeType.Shop)
             {
                 string outcome = CampaignGenerator.ResolveNonCombatNode(CurrentRun, node);
                 _saveStatusMsg = outcome;
+
+                if (CurrentRun != null && CurrentRun.EndlessFloorDepth > 0)
+                {
+                    _mapScrollPos = new Vector2(0f, 99999f);
+                }
 
                 if (CurrentRun.PendingRewards != null && CurrentRun.PendingRewards.Count > 0)
                 {
@@ -588,6 +761,7 @@ namespace CrownlessWarband.Presentation.BattleView
                 // Combat, EliteCombat, hoặc Boss
                 CurrentState = CampaignGenerator.CreateBattleForNode(CurrentRun, node);
                 TurnManager.StartPlanningPhase(CurrentState);
+                ApplyBiomeCameraTint();
                 ScreenMode = SandboxScreenMode.ActiveBattle;
                 _saveStatusMsg = $"Entered {node.Title} ({node.NodeType})";
             }
@@ -637,6 +811,30 @@ namespace CrownlessWarband.Presentation.BattleView
             }
             GUILayout.EndHorizontal();
 
+            // Hàng hiển thị Biome & Mục tiêu Nhiệm vụ (GDD Sections 32 & 37)
+            GUILayout.Space(2);
+            GUILayout.BeginHorizontal();
+            GUILayout.Label($"<b>Biome:</b> <color=#88FFCC>[{CurrentState.ActiveBiome}]</color> | <b>Goal:</b> <color=yellow>{CurrentState.GetObjectiveSummary()}</color>", _logStyle);
+            if (CurrentState.CurrentPhase == TurnPhase.Planning && !TurnManager.IsBattleOver(CurrentState))
+            {
+                if (GUILayout.Button("[Mission]", GUILayout.Width(68)))
+                {
+                    MissionType nextMission = (MissionType)(((int)CurrentState.Mission + 1) % 3);
+                    CampaignGenerator.ConfigureBattleMission(CurrentState, nextMission, 5);
+                    CurrentState.LastPlayerStrategyChangeTurn = -1;
+                    CurrentState.LastEnemyStrategyChangeTurn = -1;
+                    SquadAI.EvaluateAndUpdateStrategy(CurrentState, TeamSide.Player);
+                    SquadAI.EvaluateAndUpdateStrategy(CurrentState, TeamSide.Enemy);
+                }
+
+                if (GUILayout.Button("[Biome]", GUILayout.Width(62)))
+                {
+                    CurrentState.ActiveBiome = (BiomeType)(((int)CurrentState.ActiveBiome + 1) % 3);
+                    ApplyBiomeCameraTint();
+                }
+            }
+            GUILayout.EndHorizontal();
+
             if (CurrentState.CurrentPhase == TurnPhase.Planning && CurrentState.CurrentTurn == 1)
             {
                 GUILayout.Space(2);
@@ -680,6 +878,7 @@ namespace CrownlessWarband.Presentation.BattleView
                     if (bossNode == null) bossNode = new CampaignNode(4, 0, "F4_L0", CampaignNodeType.Boss, "The Warden's Stronghold", 100);
                     CurrentState = CampaignGenerator.CreateBattleForNode(CurrentRun, bossNode);
                     TurnManager.StartPlanningPhase(CurrentState);
+                    ApplyBiomeCameraTint();
                     _saveStatusMsg = "Spawned Boss: The Warden (Multi-Phase Test - Full Warband Restored)";
                 }
 
@@ -725,6 +924,7 @@ namespace CrownlessWarband.Presentation.BattleView
                     if (bossNode == null) bossNode = new CampaignNode(4, 0, "F4_L0", CampaignNodeType.Boss, "The Warden's Stronghold", 100);
                     CurrentState = CampaignGenerator.CreateBattleForNode(CurrentRun, bossNode);
                     TurnManager.StartPlanningPhase(CurrentState);
+                    ApplyBiomeCameraTint();
                     _saveStatusMsg = "Spawned Boss: The Warden (Multi-Phase Test - Full Warband Restored)";
                 }
 
@@ -786,6 +986,23 @@ namespace CrownlessWarband.Presentation.BattleView
                 }
 
                 GUI.enabled = true;
+
+                if (_audioManager == null)
+                {
+                    _audioManager = FindFirstObjectByType<BattleAudioManager>();
+                }
+
+                if (_audioManager != null)
+                {
+                    GUI.backgroundColor = _audioManager.IsMuted ? Color.gray : new Color(0.3f, 0.9f, 0.5f);
+                    if (GUILayout.Button(_audioManager.IsMuted ? "[SFX: OFF]" : "[SFX: ON]", GUILayout.Height(22)))
+                    {
+                        _audioManager.IsMuted = !_audioManager.IsMuted;
+                        if (!_audioManager.IsMuted) _audioManager.PlayUiClick();
+                    }
+                    GUI.backgroundColor = Color.white;
+                }
+
                 GUILayout.EndHorizontal();
 
                 // Row 2: Live Event Status
@@ -794,7 +1011,7 @@ namespace CrownlessWarband.Presentation.BattleView
                 GUILayout.EndVertical();
             }
 
-            // Nếu trận đấu kết thúc thắng lợi: Hiện nút Claim Rewards
+            // Nếu trận đấu kết thúc thắng lợi: Hiện nút Claim Rewards & Endless Mode
             if (TurnManager.IsBattleOver(CurrentState, out var battleWinner))
             {
                 GUILayout.Space(4);
@@ -806,7 +1023,12 @@ namespace CrownlessWarband.Presentation.BattleView
                         var node = CurrentRun?.GetCurrentNode() ?? (CurrentRun.Nodes.Count > 0 ? CurrentRun.Nodes[0] : null);
                         if (node != null)
                         {
-                            CampaignGenerator.CompleteNodeVictory(CurrentRun, node);
+                            CampaignGenerator.CompleteNodeVictory(CurrentRun, node, CurrentState);
+                        }
+
+                        if (CurrentRun != null && CurrentRun.EndlessFloorDepth > 0)
+                        {
+                            _mapScrollPos = new Vector2(0f, 99999f);
                         }
 
                         if (CurrentRun.PendingRewards != null && CurrentRun.PendingRewards.Count > 0)
@@ -819,6 +1041,40 @@ namespace CrownlessWarband.Presentation.BattleView
                         }
                     }
                     GUI.backgroundColor = Color.white;
+
+                    var activeNode = CurrentRun?.GetCurrentNode();
+                    bool hasBossInBattle = false;
+                    for (int i = 0; i < CurrentState.Units.Count; i++)
+                    {
+                        if (CurrentState.Units[i] != null && CurrentState.Units[i].Team == TeamSide.Enemy && CurrentState.Units[i].BossPhase > 0)
+                        {
+                            hasBossInBattle = true;
+                            break;
+                        }
+                    }
+
+                    bool isFloor4BossVictory = (activeNode != null && activeNode.NodeType == CampaignNodeType.Boss && activeNode.FloorIndex == 4 && CurrentRun.EndlessFloorDepth == 0) ||
+                                               (hasBossInBattle && CurrentRun != null && CurrentRun.EndlessFloorDepth == 0) ||
+                                               (CurrentRun != null && CurrentRun.IsRunCompleted);
+
+                    if (isFloor4BossVictory)
+                    {
+                        GUILayout.Space(4);
+                        GUI.backgroundColor = new Color(1f, 0.72f, 0.20f);
+                        if (GUILayout.Button("<b>[BOSS DEFEATED! Enter Endless Mode (Floor 5+) ->]</b>", GUILayout.Height(34)))
+                        {
+                            if (activeNode != null && !activeNode.IsCompleted)
+                            {
+                                CampaignGenerator.CompleteNodeVictory(CurrentRun, activeNode, CurrentState);
+                            }
+                            CampaignGenerator.AdvanceToNextEndlessFloor(CurrentRun);
+                            CurrentRun.PendingRewards = CampaignGenerator.GeneratePostBattleRewards(CurrentRun.Seed, CurrentRun.CurrentFloor, CurrentRun.CollectedRelics);
+                            _mapScrollPos = new Vector2(0f, 99999f);
+                            ScreenMode = SandboxScreenMode.PostBattleReward;
+                            _saveStatusMsg = $"Entered Endless Mode! Floor {4 + CurrentRun.EndlessFloorDepth} unlocked!";
+                        }
+                        GUI.backgroundColor = Color.white;
+                    }
                 }
                 else
                 {
@@ -959,6 +1215,7 @@ namespace CrownlessWarband.Presentation.BattleView
                 GUILayout.BeginVertical(_unitCardStyle);
 
                 string statusText = "";
+                if (u.IsPriorityObjective) statusText += " <color=#FFD700>[VIP]</color>";
                 if (u.IsStunned) statusText += " <color=yellow>[STUN]</color>";
                 if (u.IsMarked) statusText += " <color=red>[MARK]</color>";
                 if (u.BossPhase > 0) statusText += $" <color=orange>[BOSS PHASE {u.BossPhase}]</color>";
@@ -971,19 +1228,58 @@ namespace CrownlessWarband.Presentation.BattleView
                 GUILayout.Label($"<b>{u.Name}</b> ({u.Role} | {u.Position.Row}[{u.Position.Column}]) {statusText}");
                 GUILayout.Label($"{stateStatus} | Năng lượng: {u.CurrentEnergy}/{u.MaxEnergy} | Tốc: {u.Speed}");
 
-                // Hiển thị và cho phép chỉnh nhanh Policy trực tiếp trong Planning Phase cho Unit người chơi
-                if (team == TeamSide.Player && u.AIPolicy != null && CurrentState.CurrentPhase == TurnPhase.Planning)
+                // Hiển thị và cho phép chỉnh nhanh Policy & Chế độ kỹ năng (Auto/SemiAuto/Manual) trong Planning Phase
+                if (team == TeamSide.Player && u.IsAlive && CurrentState.CurrentPhase == TurnPhase.Planning)
                 {
-                    GUILayout.BeginHorizontal();
-                    if (GUILayout.Button($"P:[{u.AIPolicy.BehaviorPreset}]", GUILayout.Height(18)))
+                    if (u.AIPolicy != null)
                     {
-                        u.AIPolicy.BehaviorPreset = (UnitBehaviorPreset)(((int)u.AIPolicy.BehaviorPreset + 1) % 5);
+                        GUILayout.BeginHorizontal();
+                        if (GUILayout.Button($"P:[{u.AIPolicy.BehaviorPreset}]", GUILayout.Height(18)))
+                        {
+                            u.AIPolicy.BehaviorPreset = (UnitBehaviorPreset)(((int)u.AIPolicy.BehaviorPreset + 1) % 5);
+                        }
+                        if (GUILayout.Button($"T:[{u.AIPolicy.PrimaryTargetRule}]", GUILayout.Height(18)))
+                        {
+                            u.AIPolicy.PrimaryTargetRule = (TargetPriorityRule)(((int)u.AIPolicy.PrimaryTargetRule + 1) % 6);
+                        }
+                        GUILayout.EndHorizontal();
                     }
-                    if (GUILayout.Button($"T:[{u.AIPolicy.PrimaryTargetRule}]", GUILayout.Height(18)))
+
+                    bool hasSpecialSkill = false;
+                    for (int s = 0; s < u.Skills.Count; s++)
                     {
-                        u.AIPolicy.PrimaryTargetRule = (TargetPriorityRule)(((int)u.AIPolicy.PrimaryTargetRule + 1) % 6);
+                        if (u.Skills[s].Slot != SkillSlotType.BasicAttack)
+                        {
+                            hasSpecialSkill = true;
+                            break;
+                        }
                     }
-                    GUILayout.EndHorizontal();
+
+                    if (hasSpecialSkill)
+                    {
+                        GUILayout.BeginHorizontal();
+                        for (int s = 0; s < u.Skills.Count; s++)
+                        {
+                            var sk = u.Skills[s];
+                            if (sk.Slot == SkillSlotType.BasicAttack) continue;
+
+                            if (GUILayout.Button($"{sk.Name}:{sk.ControlMode}", GUILayout.Height(20)))
+                            {
+                                sk.ControlMode = (SkillControlMode)(((int)sk.ControlMode + 1) % 3);
+                            }
+
+                            if (sk.ControlMode == SkillControlMode.Manual && sk.IsReady(u.CurrentEnergy))
+                            {
+                                GUI.backgroundColor = Color.green;
+                                if (GUILayout.Button("[CAST]", GUILayout.Width(52), GUILayout.Height(20)))
+                                {
+                                    ExecutePlayerManualSkill(u, sk);
+                                }
+                                GUI.backgroundColor = Color.white;
+                            }
+                        }
+                        GUILayout.EndHorizontal();
+                    }
                 }
 
                 // Liệt kê Cooldown kỹ năng
@@ -999,6 +1295,95 @@ namespace CrownlessWarband.Presentation.BattleView
                 GUILayout.EndVertical();
                 GUI.backgroundColor = Color.white;
                 GUILayout.Space(2);
+            }
+        }
+
+        private void ExecutePlayerManualSkill(UnitState caster, SkillInstance skill)
+        {
+            if (CurrentState == null || caster == null || skill == null) return;
+            if (!caster.IsAlive || CurrentState.CurrentPhase != TurnPhase.Planning) return;
+            if (caster.CurrentEnergy < skill.EnergyCost) return;
+
+            string targetId = null;
+            BattlefieldGridView grid = FindFirstObjectByType<BattlefieldGridView>();
+            string gridSelectedId = grid != null ? grid.SelectedUnitId : null;
+
+            if (skill.TargetType == SkillTargetType.SingleEnemy || skill.TargetType == SkillTargetType.EnemyRow)
+            {
+                if (!string.IsNullOrEmpty(gridSelectedId))
+                {
+                    for (int i = 0; i < CurrentState.Units.Count; i++)
+                    {
+                        var selected = CurrentState.Units[i];
+                        if (selected != null && selected.InstanceId == gridSelectedId && selected.IsAlive &&
+                            selected.Team == TeamSide.Enemy && CombatResolver.IsValidTarget(CurrentState, caster, skill, selected))
+                        {
+                            targetId = selected.InstanceId;
+                            break;
+                        }
+                    }
+                }
+
+                if (string.IsNullOrEmpty(targetId))
+                {
+                    UnitState bestEnemy = null;
+                    for (int i = 0; i < CurrentState.Units.Count; i++)
+                    {
+                        var candidate = CurrentState.Units[i];
+                        if (candidate == null || !candidate.IsAlive || candidate.Team != TeamSide.Enemy) continue;
+                        if (!CombatResolver.IsValidTarget(CurrentState, caster, skill, candidate)) continue;
+
+                        if (bestEnemy == null ||
+                            (candidate.IsPriorityObjective && !bestEnemy.IsPriorityObjective) ||
+                            (candidate.IsPriorityObjective == bestEnemy.IsPriorityObjective && candidate.CurrentHP < bestEnemy.CurrentHP))
+                        {
+                            bestEnemy = candidate;
+                        }
+                    }
+
+                    if (bestEnemy != null)
+                    {
+                        targetId = bestEnemy.InstanceId;
+                    }
+                }
+            }
+            else if (skill.TargetType == SkillTargetType.SingleAlly || skill.TargetType == SkillTargetType.LowestHpAlly)
+            {
+                UnitState lowestAlly = null;
+                for (int i = 0; i < CurrentState.Units.Count; i++)
+                {
+                    var ally = CurrentState.Units[i];
+                    if (ally == null || !ally.IsAlive || ally.Team != TeamSide.Player) continue;
+                    if (skill.EffectType == SkillEffectType.ProtectAlly && ally.InstanceId == caster.InstanceId) continue;
+
+                    if (lowestAlly == null || ally.HPPercentage < lowestAlly.HPPercentage ||
+                        (Mathf.Approximately(ally.HPPercentage, lowestAlly.HPPercentage) && ally.CurrentHP < lowestAlly.CurrentHP))
+                    {
+                        lowestAlly = ally;
+                    }
+                }
+
+                if (lowestAlly == null && skill.TargetType == SkillTargetType.SingleAlly)
+                {
+                    lowestAlly = caster;
+                }
+
+                if (lowestAlly != null)
+                {
+                    targetId = lowestAlly.InstanceId;
+                }
+            }
+
+            if (_eventPresenter == null) _eventPresenter = FindFirstObjectByType<CombatEventPresenter>();
+            if (_eventPresenter != null)
+            {
+                _eventPresenter.IsPaused = false;
+                _eventPresenter.CapturePreTurnSnapshot(CurrentState);
+            }
+
+            if (TurnManager.TryExecuteManualSkill(CurrentState, caster.InstanceId, skill.SkillId, targetId))
+            {
+                _saveStatusMsg = $"Manual Cast: {caster.Name} used {skill.Name}!";
             }
         }
 

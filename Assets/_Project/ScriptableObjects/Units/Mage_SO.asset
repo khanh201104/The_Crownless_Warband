@@ -1,0 +1,30 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cdd20da6b830a1849a64d4c836de4f11, type: 3}
+  m_Name: Mage_SO
+  m_EditorClassIdentifier: CrownlessWarband.Data::CrownlessWarband.Data.UnitDataSO
+  CharacterId: p_mage
+  UnitName: Mage
+  DefaultTeam: 0
+  Role: 3
+  DefaultRow: 1
+  DefaultColumn: 1
+  MaxHP: 175
+  Attack: 45
+  Defense: 10
+  Speed: 13
+  BaseThreat: 35
+  DefaultAffix: 0
+  Skills:
+  - {fileID: 11400000, guid: 7d3cbf41a668c124d88dd1fd80337a81, type: 2}
+  - {fileID: 11400000, guid: 4dcdd9488d550d444a3924eb03ad9a24, type: 2}
+  - {fileID: 11400000, guid: f19373f59464dfd4c89e0e52269e55fb, type: 2}
