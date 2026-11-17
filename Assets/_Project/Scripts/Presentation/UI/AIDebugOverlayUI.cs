@@ -18,7 +18,7 @@ namespace CrownlessWarband.Presentation.UI
         [SerializeField] private BattleSandboxController sandboxController;
 
         [Header("Debug Settings")]
-        public bool isVisible = true; // Mặc định mở để kiểm thử tiện lợi
+        public bool isVisible = false; // Mặc định ẩn; bật bằng F3 trong Campaign/Battle hoặc nút UI
         public bool autoFollowActingUnit = true;
 
         private BattlefieldGridView _gridView;
@@ -46,11 +46,31 @@ namespace CrownlessWarband.Presentation.UI
         {
             EnsureGridSubscription();
 
-            // Bấm F3 để bật/tắt bảng AI Debug
-            if (Input.GetKeyDown(KeyCode.F3))
+            if (sandboxController == null)
+            {
+                sandboxController = FindFirstObjectByType<BattleSandboxController>();
+            }
+
+            // Bấm F3 để bật/tắt bảng AI Debug (chỉ trong trận đấu hoặc BatchSimulator ở Debug Mode)
+            bool canToggleF3 = sandboxController == null ||
+                               (!sandboxController.IsAnyModalOpen &&
+                                (sandboxController.ScreenMode == SandboxScreenMode.ActiveBattle ||
+                                 (sandboxController.IsDebugMode && sandboxController.ScreenMode == SandboxScreenMode.BatchSimulator)));
+
+            if (Input.GetKeyDown(KeyCode.F3) && canToggleF3)
             {
                 isVisible = !isVisible;
             }
+        }
+
+        public void ToggleVisible()
+        {
+            isVisible = !isVisible;
+        }
+
+        public void SetVisible(bool visible)
+        {
+            isVisible = visible;
         }
 
         private void OnDestroy()
@@ -151,14 +171,31 @@ namespace CrownlessWarband.Presentation.UI
                 sandboxController = FindFirstObjectByType<BattleSandboxController>();
             }
 
-            if (sandboxController == null || sandboxController.CurrentState == null) return;
+            if (sandboxController == null || sandboxController.CurrentState == null)
+            {
+                return;
+            }
+
+            bool validScreen = sandboxController.ScreenMode == SandboxScreenMode.ActiveBattle ||
+                               (sandboxController.IsDebugMode && sandboxController.ScreenMode == SandboxScreenMode.BatchSimulator);
+            if (!validScreen)
+            {
+                return;
+            }
+
+            if (!sandboxController.IsDebugMode && sandboxController.IsAnyModalOpen)
+            {
+                return;
+            }
 
             InitStyles();
 
             var state = sandboxController.CurrentState;
             float panelWidth = Mathf.Min(430f, Screen.width * 0.27f);
             float panelX = Screen.width - panelWidth - 10;
-            Rect panelRect = new Rect(panelX, 10, panelWidth, Screen.height - 20);
+            float topMargin = sandboxController.IsDebugMode ? 10f : Mathf.Max(66f, Screen.height * 0.072f);
+            float bottomMargin = sandboxController.IsDebugMode ? 10f : Mathf.Max(136f, Screen.height * 0.175f);
+            Rect panelRect = new Rect(panelX, topMargin, panelWidth, Mathf.Max(180f, Screen.height - topMargin - bottomMargin));
 
             // Nền tối bán trong suốt cho F3 Debug Panel
             GUI.backgroundColor = new Color(0.08f, 0.1f, 0.14f, 0.95f);

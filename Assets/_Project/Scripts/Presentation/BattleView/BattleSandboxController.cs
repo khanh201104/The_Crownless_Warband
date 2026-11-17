@@ -7,12 +7,14 @@ using CrownlessWarband.Core.Events;
 using CrownlessWarband.Core.Roguelite;
 using CrownlessWarband.Core.Save;
 using CrownlessWarband.Data;
+using CrownlessWarband.Presentation.UI;
 using UnityEngine;
 
 namespace CrownlessWarband.Presentation.BattleView
 {
     public enum SandboxScreenMode
     {
+        MainMenu,
         CampaignMap,
         ActiveBattle,
         PostBattleReward,
@@ -29,9 +31,20 @@ namespace CrownlessWarband.Presentation.BattleView
         [Header("Data-Driven Content (GDD Section 34 & 47)")]
         [SerializeField] private ContentDatabaseSO contentDatabase = null;
 
+        [Header("Game Flow Settings")]
+        [SerializeField] private bool startInMainMenu = true;
+
         public BattleState CurrentState { get; private set; }
         public RunState CurrentRun { get; private set; }
-        public SandboxScreenMode ScreenMode = SandboxScreenMode.ActiveBattle;
+        public SandboxScreenMode ScreenMode = SandboxScreenMode.MainMenu;
+        public bool IsDebugMode { get; private set; }
+        public bool IsSettingsOpen { get; set; }
+        public bool IsPolicyModalOpen { get; set; }
+        public bool IsFinalGameOverModalOpen { get; set; }
+        public bool IsAnyModalOpen => IsSettingsOpen || IsPolicyModalOpen || IsFinalGameOverModalOpen;
+        public BattleAudioManager AudioManager => _audioManager;
+        public CombatEventPresenter EventPresenter => _eventPresenter;
+        public string LastStatusMessage => _saveStatusMsg;
 
         private Vector2 _combatLogScrollPos = Vector2.zero;
         private Vector2 _mapScrollPos = Vector2.zero;
@@ -42,6 +55,8 @@ namespace CrownlessWarband.Presentation.BattleView
         private bool _compactBattleHud = true;
         private CombatEventPresenter _eventPresenter;
         private BattleAudioManager _audioManager;
+        private float _autoTurnDelayTimer = 0f;
+        private const float AutoTurnTransitionDelay = 0.25f;
         private readonly List<UnitState> _turnOrderBuffer = new List<UnitState>(12);
         private static readonly Comparison<UnitState> TurnOrderComparison = CompareTurnOrder;
 
@@ -94,6 +109,34 @@ namespace CrownlessWarband.Presentation.BattleView
                 _audioManager = gridView.gameObject.AddComponent<BattleAudioManager>();
             }
 
+            MainMenuAndSettingsView menuAndSettings = FindFirstObjectByType<MainMenuAndSettingsView>();
+            if (menuAndSettings == null)
+            {
+                GameObject uiShellObj = new GameObject("MainMenuAndSettingsUI");
+                menuAndSettings = uiShellObj.AddComponent<MainMenuAndSettingsView>();
+            }
+
+            BattleHudView battleHud = FindFirstObjectByType<BattleHudView>();
+            if (battleHud == null)
+            {
+                GameObject battleHudObj = new GameObject("BattleHudUI");
+                battleHud = battleHudObj.AddComponent<BattleHudView>();
+            }
+
+            BattleModalsView battleModals = FindFirstObjectByType<BattleModalsView>();
+            if (battleModals == null)
+            {
+                GameObject modalsObj = new GameObject("BattleModalsUI");
+                battleModals = modalsObj.AddComponent<BattleModalsView>();
+            }
+
+            CampaignWorldMapView worldMapView = FindFirstObjectByType<CampaignWorldMapView>();
+            if (worldMapView == null)
+            {
+                GameObject worldMapObj = new GameObject("CampaignWorldMapUI");
+                worldMapView = worldMapObj.AddComponent<CampaignWorldMapView>();
+            }
+
             if (contentDatabase == null)
             {
                 contentDatabase = ContentDatabaseSO.CreateRuntimeDefaultDatabase();
@@ -104,30 +147,112 @@ namespace CrownlessWarband.Presentation.BattleView
                 CurrentRun = CampaignGenerator.CreateNewRun(847291, CampaignGenerator.CreateDefaultPlayerWarband());
             }
 
-            ResetScenario();
-            ApplyBiomeCameraTint();
+            if (startInMainMenu)
+            {
+                ScreenMode = SandboxScreenMode.MainMenu;
+                IsDebugMode = false;
+                AIDebugOverlayUI aiDebug = FindFirstObjectByType<AIDebugOverlayUI>();
+                if (aiDebug != null) aiDebug.SetVisible(false);
+            }
+            else
+            {
+                ScreenMode = SandboxScreenMode.ActiveBattle;
+                IsDebugMode = true;
+                ResetScenario();
+                ApplyBiomeCameraTint();
+            }
         }
 
         private void Update()
         {
-            if (ScreenMode == SandboxScreenMode.ActiveBattle)
+            if (Input.GetKeyDown(KeyCode.F8))
             {
-                // Phím SPACE: Thực thi Auto Combat Phase khi đang ở Planning
+                ToggleDebugMode();
+            }
+
+            if (ScreenMode == SandboxScreenMode.ActiveBattle && CurrentState != null && !IsAnyModalOpen)
+            {
+                // Phím SPACE: Tạm dừng / Tiếp tục trận đấu
                 if (Input.GetKeyDown(KeyCode.Space))
                 {
-                    RunAutoCombat();
+                    ToggleBattlePause();
                 }
 
-                // Phím R: Reset lại trận đấu về đầu Turn 1
-                if (Input.GetKeyDown(KeyCode.R))
+                // Phím R: Reset lại trận đấu về đầu Turn 1 (chỉ bật ở Debug Mode để tránh xóa nhầm trận Campaign)
+                if (IsDebugMode && Input.GetKeyDown(KeyCode.R))
                 {
                     ResetScenario();
+                }
+
+                // Tự động chạy nối tiếp các lượt cho tới khi trận kết thúc
+                if (_eventPresenter == null)
+                {
+                    _eventPresenter = FindFirstObjectByType<CombatEventPresenter>();
+                }
+                if (_eventPresenter != null && _eventPresenter.SpeedMode == PlaybackSpeedMode.Instant)
+                {
+                    _eventPresenter.SpeedMode = PlaybackSpeedMode.Speed4x;
+                }
+
+                bool isPlayingEvents = _eventPresenter != null && _eventPresenter.IsPlayingEvents;
+                bool isPaused = _eventPresenter != null && _eventPresenter.IsPaused;
+
+                if (!TurnManager.IsBattleOver(CurrentState) &&
+                    CurrentState.CurrentPhase == TurnPhase.Planning &&
+                    !isPlayingEvents &&
+                    !isPaused)
+                {
+                    float requiredDelay = AutoTurnTransitionDelay;
+                    _autoTurnDelayTimer += Time.deltaTime;
+                    if (_autoTurnDelayTimer >= requiredDelay)
+                    {
+                        _autoTurnDelayTimer = 0f;
+                        RunAutoCombat();
+                    }
+                }
+                else
+                {
+                    _autoTurnDelayTimer = 0f;
+                }
+            }
+        }
+
+        public void ToggleBattlePause()
+        {
+            if (CurrentState == null || TurnManager.IsBattleOver(CurrentState)) return;
+            if (_eventPresenter == null)
+            {
+                _eventPresenter = FindFirstObjectByType<CombatEventPresenter>();
+            }
+            if (_eventPresenter != null)
+            {
+                bool wasPaused = _eventPresenter.IsPaused;
+                _eventPresenter.IsPaused = !wasPaused;
+
+                // Nếu vừa bấm Space để Bắt đầu / Tiếp tục khi đang chờ ở pha Planning -> kích hoạt đánh ngay lập tức
+                if (wasPaused &&
+                    !_eventPresenter.IsPaused &&
+                    CurrentState.CurrentPhase == TurnPhase.Planning &&
+                    !_eventPresenter.IsPlayingEvents)
+                {
+                    _autoTurnDelayTimer = AutoTurnTransitionDelay;
                 }
             }
         }
 
         public void ResetScenario()
         {
+            IsFinalGameOverModalOpen = false;
+            _autoTurnDelayTimer = AutoTurnTransitionDelay;
+            if (_eventPresenter == null)
+            {
+                _eventPresenter = FindFirstObjectByType<CombatEventPresenter>();
+            }
+            if (_eventPresenter != null)
+            {
+                _eventPresenter.IsPaused = true;
+            }
+
             SetupGDDSection53Scenario();
             TurnManager.StartPlanningPhase(CurrentState);
             ApplyBiomeCameraTint();
@@ -174,7 +299,6 @@ namespace CrownlessWarband.Presentation.BattleView
             {
                 if (_eventPresenter != null)
                 {
-                    _eventPresenter.IsPaused = false;
                     _eventPresenter.CapturePreTurnSnapshot(CurrentState);
                 }
                 TurnManager.ExecuteAutoCombatPhase(CurrentState);
@@ -383,6 +507,8 @@ namespace CrownlessWarband.Presentation.BattleView
 
         private void OnGUI()
         {
+            if (!IsDebugMode) return;
+
             InitStyles();
 
             float panelWidth = (ScreenMode == SandboxScreenMode.ActiveBattle && _compactBattleHud)
@@ -601,9 +727,7 @@ namespace CrownlessWarband.Presentation.BattleView
                 GUI.backgroundColor = new Color(1f, 0.72f, 0.20f);
                 if (GUILayout.Button("<b>[Unlock Next Endless Floor ->]</b>", GUILayout.Height(30)))
                 {
-                    CampaignGenerator.AdvanceToNextEndlessFloor(CurrentRun);
-                    _mapScrollPos = new Vector2(0f, 99999f);
-                    _saveStatusMsg = $"Unlocked Endless Floor {4 + CurrentRun.EndlessFloorDepth}!";
+                    UnlockNextEndlessFloor();
                 }
                 GUI.backgroundColor = Color.white;
                 GUILayout.Space(4);
@@ -734,8 +858,10 @@ namespace CrownlessWarband.Presentation.BattleView
             GUILayout.EndScrollView();
         }
 
-        private void SelectCampaignNode(CampaignNode node)
+        public void SelectCampaignNode(CampaignNode node)
         {
+            if (node == null || CurrentRun == null) return;
+
             CurrentRun.CurrentNodeId = node.NodeId;
             CurrentRun.CurrentFloor = node.FloorIndex;
 
@@ -759,6 +885,24 @@ namespace CrownlessWarband.Presentation.BattleView
             else
             {
                 // Combat, EliteCombat, hoặc Boss
+                IsFinalGameOverModalOpen = false;
+                if (_eventPresenter != null && _eventPresenter.IsPlayingEvents)
+                {
+                    _eventPresenter.SkipAllPendingEvents();
+                }
+                FloatingTextView ftv = FindFirstObjectByType<FloatingTextView>();
+                ftv?.ClearAll();
+
+                _autoTurnDelayTimer = AutoTurnTransitionDelay;
+                if (_eventPresenter == null)
+                {
+                    _eventPresenter = FindFirstObjectByType<CombatEventPresenter>();
+                }
+                if (_eventPresenter != null)
+                {
+                    _eventPresenter.IsPaused = true;
+                }
+
                 CurrentState = CampaignGenerator.CreateBattleForNode(CurrentRun, node);
                 TurnManager.StartPlanningPhase(CurrentState);
                 ApplyBiomeCameraTint();
@@ -962,9 +1106,6 @@ namespace CrownlessWarband.Presentation.BattleView
                 GUI.backgroundColor = _eventPresenter.SpeedMode == PlaybackSpeedMode.Speed4x ? Color.yellow : Color.white;
                 if (GUILayout.Button("[4x]", GUILayout.Height(22))) _eventPresenter.SpeedMode = PlaybackSpeedMode.Speed4x;
 
-                GUI.backgroundColor = _eventPresenter.SpeedMode == PlaybackSpeedMode.Instant ? Color.yellow : Color.white;
-                if (GUILayout.Button("[Inst]", GUILayout.Height(22))) _eventPresenter.SpeedMode = PlaybackSpeedMode.Instant;
-
                 GUI.backgroundColor = _eventPresenter.IsPaused ? new Color(1f, 0.65f, 0.2f) : Color.white;
                 if (GUILayout.Button(_eventPresenter.IsPaused ? "[Resume]" : "[Pause]", GUILayout.Height(22)))
                 {
@@ -1020,58 +1161,17 @@ namespace CrownlessWarband.Presentation.BattleView
                     GUI.backgroundColor = Color.green;
                     if (GUILayout.Button("<b>VICTORY! Claim Rewards & Advance Campaign -></b>", GUILayout.Height(34)))
                     {
-                        var node = CurrentRun?.GetCurrentNode() ?? (CurrentRun.Nodes.Count > 0 ? CurrentRun.Nodes[0] : null);
-                        if (node != null)
-                        {
-                            CampaignGenerator.CompleteNodeVictory(CurrentRun, node, CurrentState);
-                        }
-
-                        if (CurrentRun != null && CurrentRun.EndlessFloorDepth > 0)
-                        {
-                            _mapScrollPos = new Vector2(0f, 99999f);
-                        }
-
-                        if (CurrentRun.PendingRewards != null && CurrentRun.PendingRewards.Count > 0)
-                        {
-                            ScreenMode = SandboxScreenMode.PostBattleReward;
-                        }
-                        else
-                        {
-                            ScreenMode = SandboxScreenMode.CampaignMap;
-                        }
+                        ClaimBattleVictoryAndAdvance();
                     }
                     GUI.backgroundColor = Color.white;
 
-                    var activeNode = CurrentRun?.GetCurrentNode();
-                    bool hasBossInBattle = false;
-                    for (int i = 0; i < CurrentState.Units.Count; i++)
-                    {
-                        if (CurrentState.Units[i] != null && CurrentState.Units[i].Team == TeamSide.Enemy && CurrentState.Units[i].BossPhase > 0)
-                        {
-                            hasBossInBattle = true;
-                            break;
-                        }
-                    }
-
-                    bool isFloor4BossVictory = (activeNode != null && activeNode.NodeType == CampaignNodeType.Boss && activeNode.FloorIndex == 4 && CurrentRun.EndlessFloorDepth == 0) ||
-                                               (hasBossInBattle && CurrentRun != null && CurrentRun.EndlessFloorDepth == 0) ||
-                                               (CurrentRun != null && CurrentRun.IsRunCompleted);
-
-                    if (isFloor4BossVictory)
+                    if (CanEnterEndlessMode())
                     {
                         GUILayout.Space(4);
                         GUI.backgroundColor = new Color(1f, 0.72f, 0.20f);
                         if (GUILayout.Button("<b>[BOSS DEFEATED! Enter Endless Mode (Floor 5+) ->]</b>", GUILayout.Height(34)))
                         {
-                            if (activeNode != null && !activeNode.IsCompleted)
-                            {
-                                CampaignGenerator.CompleteNodeVictory(CurrentRun, activeNode, CurrentState);
-                            }
-                            CampaignGenerator.AdvanceToNextEndlessFloor(CurrentRun);
-                            CurrentRun.PendingRewards = CampaignGenerator.GeneratePostBattleRewards(CurrentRun.Seed, CurrentRun.CurrentFloor, CurrentRun.CollectedRelics);
-                            _mapScrollPos = new Vector2(0f, 99999f);
-                            ScreenMode = SandboxScreenMode.PostBattleReward;
-                            _saveStatusMsg = $"Entered Endless Mode! Floor {4 + CurrentRun.EndlessFloorDepth} unlocked!";
+                            EnterEndlessModeFromVictory();
                         }
                         GUI.backgroundColor = Color.white;
                     }
@@ -1081,7 +1181,7 @@ namespace CrownlessWarband.Presentation.BattleView
                     GUI.backgroundColor = new Color(0.8f, 0.3f, 0.3f);
                     if (GUILayout.Button("<b>Warband Fallen. Return to Campaign Map</b>", GUILayout.Height(34)))
                     {
-                        ScreenMode = SandboxScreenMode.CampaignMap;
+                        ReturnToMapOnDefeat();
                     }
                     GUI.backgroundColor = Color.white;
                 }
@@ -1180,10 +1280,7 @@ namespace CrownlessWarband.Presentation.BattleView
                 GUI.backgroundColor = Color.green;
                 if (GUILayout.Button($"Select {opt.Title}", GUILayout.Height(30)))
                 {
-                    CampaignGenerator.ApplyReward(CurrentRun, opt);
-                    CurrentRun.PendingRewards.Clear();
-                    ScreenMode = SandboxScreenMode.CampaignMap;
-                    _saveStatusMsg = $"Applied Reward: {opt.Title}";
+                    SelectRewardOption(i);
                     GUILayout.EndVertical();
                     break;
                 }
@@ -1298,11 +1395,12 @@ namespace CrownlessWarband.Presentation.BattleView
             }
         }
 
-        private void ExecutePlayerManualSkill(UnitState caster, SkillInstance skill)
+        public bool ExecutePlayerManualSkill(UnitState caster, SkillInstance skill)
         {
-            if (CurrentState == null || caster == null || skill == null) return;
-            if (!caster.IsAlive || CurrentState.CurrentPhase != TurnPhase.Planning) return;
-            if (caster.CurrentEnergy < skill.EnergyCost) return;
+            if (CurrentState == null || caster == null || skill == null) return false;
+            if (!caster.IsAlive || caster.IsStunned || TurnManager.IsBattleOver(CurrentState)) return false;
+            if (CurrentState.CurrentPhase != TurnPhase.Planning) return false;
+            if (!skill.IsReady(caster.CurrentEnergy)) return false;
 
             string targetId = null;
             BattlefieldGridView grid = FindFirstObjectByType<BattlefieldGridView>();
@@ -1384,7 +1482,9 @@ namespace CrownlessWarband.Presentation.BattleView
             if (TurnManager.TryExecuteManualSkill(CurrentState, caster.InstanceId, skill.SkillId, targetId))
             {
                 _saveStatusMsg = $"Manual Cast: {caster.Name} used {skill.Name}!";
+                return true;
             }
+            return false;
         }
 
         private void DrawBatchSimulatorScreen(float panelWidth)
@@ -1584,7 +1684,239 @@ namespace CrownlessWarband.Presentation.BattleView
             }
         }
 
-        private void SaveRunToJson()
+        public bool HasSaveFile()
+        {
+            return File.Exists(SaveFilePath);
+        }
+
+        public void StartNewRun(int seed = 0)
+        {
+            FloatingTextView ftv = FindFirstObjectByType<FloatingTextView>();
+            ftv?.ClearAll();
+
+            int actualSeed = seed != 0 ? seed : UnityEngine.Random.Range(100000, 999999);
+            CurrentRun = CampaignGenerator.CreateNewRun(actualSeed, CampaignGenerator.CreateDefaultPlayerWarband());
+            CurrentState = null;
+            IsDebugMode = false;
+            IsFinalGameOverModalOpen = false;
+            AIDebugOverlayUI aiDebug = FindFirstObjectByType<AIDebugOverlayUI>();
+            aiDebug?.SetVisible(false);
+            ScreenMode = SandboxScreenMode.CampaignMap;
+            _saveStatusMsg = $"Started New Run (Seed: {CurrentRun.Seed})";
+        }
+
+        public bool ContinueSavedRun()
+        {
+            if (!HasSaveFile())
+            {
+                _saveStatusMsg = "File not found or invalid JSON.";
+                return false;
+            }
+
+            RunState previousRun = CurrentRun;
+            CurrentRun = null;
+            LoadRunFromJson();
+            if (CurrentRun != null)
+            {
+                FloatingTextView ftv = FindFirstObjectByType<FloatingTextView>();
+                ftv?.ClearAll();
+
+                CurrentState = null;
+                IsDebugMode = false;
+                IsFinalGameOverModalOpen = false;
+                AIDebugOverlayUI aiDebug = FindFirstObjectByType<AIDebugOverlayUI>();
+                aiDebug?.SetVisible(false);
+                bool hasPendingRewards = CurrentRun.PendingRewards != null && CurrentRun.PendingRewards.Count > 0;
+                ScreenMode = hasPendingRewards ? SandboxScreenMode.PostBattleReward : SandboxScreenMode.CampaignMap;
+                return true;
+            }
+
+            CurrentRun = previousRun;
+            return false;
+        }
+
+        public void OpenDebugSandbox()
+        {
+            IsDebugMode = true;
+            IsFinalGameOverModalOpen = false;
+            if (CurrentRun == null)
+            {
+                CurrentRun = CampaignGenerator.CreateNewRun(847291, CampaignGenerator.CreateDefaultPlayerWarband());
+            }
+
+            if (CurrentState == null)
+            {
+                ResetScenario();
+            }
+
+            ScreenMode = SandboxScreenMode.ActiveBattle;
+            ApplyBiomeCameraTint();
+        }
+
+        public void ReturnToMainMenu()
+        {
+            FloatingTextView ftv = FindFirstObjectByType<FloatingTextView>();
+            ftv?.ClearAll();
+
+            ScreenMode = SandboxScreenMode.MainMenu;
+            IsDebugMode = false;
+            IsFinalGameOverModalOpen = false;
+            AIDebugOverlayUI aiDebug = FindFirstObjectByType<AIDebugOverlayUI>();
+            aiDebug?.SetVisible(false);
+        }
+
+        public void ToggleDebugMode()
+        {
+            IsDebugMode = !IsDebugMode;
+            IsFinalGameOverModalOpen = false;
+            if (IsDebugMode && ScreenMode == SandboxScreenMode.MainMenu)
+            {
+                ScreenMode = SandboxScreenMode.ActiveBattle;
+                if (CurrentState == null)
+                {
+                    ResetScenario();
+                }
+                ApplyBiomeCameraTint();
+            }
+        }
+
+        public bool SelectRewardOption(int optionIndex)
+        {
+            if (CurrentRun == null || CurrentRun.PendingRewards == null) return false;
+            if (optionIndex < 0 || optionIndex >= CurrentRun.PendingRewards.Count) return false;
+
+            var opt = CurrentRun.PendingRewards[optionIndex];
+            CampaignGenerator.ApplyReward(CurrentRun, opt);
+            CurrentRun.PendingRewards.Clear();
+            ScreenMode = SandboxScreenMode.CampaignMap;
+            _saveStatusMsg = $"Applied Reward: {opt.Title}";
+            return true;
+        }
+
+        public void ClaimBattleVictoryAndAdvance()
+        {
+            if (CurrentRun == null || CurrentState == null) return;
+
+            FloatingTextView ftv = FindFirstObjectByType<FloatingTextView>();
+            ftv?.ClearAll();
+
+            CampaignNode node = CurrentRun.GetCurrentNode()
+                ?? (CurrentRun.Nodes != null && CurrentRun.Nodes.Count > 0 ? CurrentRun.Nodes[0] : null);
+            if (node != null)
+            {
+                CampaignGenerator.CompleteNodeVictory(CurrentRun, node, CurrentState);
+            }
+
+            if (CurrentRun.EndlessFloorDepth > 0)
+            {
+                _mapScrollPos = new Vector2(0f, 99999f);
+            }
+
+            if (CurrentRun.PendingRewards != null && CurrentRun.PendingRewards.Count > 0)
+            {
+                ScreenMode = SandboxScreenMode.PostBattleReward;
+            }
+            else
+            {
+                ScreenMode = SandboxScreenMode.CampaignMap;
+            }
+        }
+
+        public bool CanEnterEndlessMode()
+        {
+            if (CurrentState == null || CurrentRun == null) return false;
+            if (CurrentRun.EndlessFloorDepth > 0) return false;
+            if (!TurnManager.IsBattleOver(CurrentState, out TeamSide? winner) || winner != TeamSide.Player)
+            {
+                return false;
+            }
+
+            CampaignNode activeNode = CurrentRun.GetCurrentNode();
+            bool hasBossInBattle = false;
+            for (int i = 0; i < CurrentState.Units.Count; i++)
+            {
+                UnitState unit = CurrentState.Units[i];
+                if (unit != null && unit.Team == TeamSide.Enemy && unit.BossPhase > 0)
+                {
+                    hasBossInBattle = true;
+                    break;
+                }
+            }
+
+            return (activeNode != null &&
+                    activeNode.NodeType == CampaignNodeType.Boss &&
+                    activeNode.FloorIndex == 4) ||
+                   hasBossInBattle;
+        }
+
+        public void EnterEndlessModeFromVictory()
+        {
+            if (CurrentRun == null || CurrentState == null) return;
+
+            FloatingTextView ftv = FindFirstObjectByType<FloatingTextView>();
+            ftv?.ClearAll();
+
+            CampaignNode activeNode = CurrentRun.GetCurrentNode();
+            if (activeNode != null && !activeNode.IsCompleted)
+            {
+                CampaignGenerator.CompleteNodeVictory(CurrentRun, activeNode, CurrentState);
+            }
+
+            CampaignGenerator.AdvanceToNextEndlessFloor(CurrentRun);
+            CurrentRun.PendingRewards = CampaignGenerator.GeneratePostBattleRewards(
+                CurrentRun.Seed,
+                CurrentRun.CurrentFloor,
+                CurrentRun.CollectedRelics);
+            _mapScrollPos = new Vector2(0f, 99999f);
+            ScreenMode = SandboxScreenMode.PostBattleReward;
+            _saveStatusMsg = $"Entered Endless Mode! Floor {4 + CurrentRun.EndlessFloorDepth} unlocked!";
+        }
+
+        public void ReturnToMapOnDefeat()
+        {
+            FloatingTextView ftv = FindFirstObjectByType<FloatingTextView>();
+            ftv?.ClearAll();
+
+            ScreenMode = SandboxScreenMode.CampaignMap;
+        }
+
+        public void FinalizeCampaignVictoryGameOver()
+        {
+            if (CurrentRun == null || CurrentState == null) return;
+
+            FloatingTextView ftv = FindFirstObjectByType<FloatingTextView>();
+            ftv?.ClearAll();
+
+            CampaignNode node = CurrentRun.GetCurrentNode();
+            if (node != null && !node.IsCompleted)
+            {
+                CampaignGenerator.CompleteNodeVictory(CurrentRun, node, CurrentState);
+            }
+
+            if (CurrentRun.PendingRewards != null)
+            {
+                CurrentRun.PendingRewards.Clear();
+            }
+
+            CurrentRun.IsRunCompleted = true;
+            _saveStatusMsg = "Campaign Completed! Victory over The Warden!";
+        }
+
+        public void UnlockNextEndlessFloor()
+        {
+            if (CurrentRun == null) return;
+
+            CampaignNode currentNode = CurrentRun.GetCurrentNode();
+            if (CurrentRun.IsRunCompleted ||
+                (currentNode != null && currentNode.IsCompleted && currentNode.NextNodeIds.Count == 0))
+            {
+                CampaignGenerator.AdvanceToNextEndlessFloor(CurrentRun);
+                _mapScrollPos = new Vector2(0f, 99999f);
+                _saveStatusMsg = $"Unlocked Endless Floor {4 + CurrentRun.EndlessFloorDepth}!";
+            }
+        }
+
+        public void SaveRunToJson()
         {
             if (CurrentRun == null) return;
             try
@@ -1598,7 +1930,7 @@ namespace CrownlessWarband.Presentation.BattleView
             }
         }
 
-        private void LoadRunFromJson()
+        public void LoadRunFromJson()
         {
             try
             {

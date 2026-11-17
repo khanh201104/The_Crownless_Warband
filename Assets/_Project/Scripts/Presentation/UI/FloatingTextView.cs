@@ -1,4 +1,6 @@
 using System;
+using CrownlessWarband.Core.Battle;
+using CrownlessWarband.Presentation.BattleView;
 using UnityEngine;
 
 namespace CrownlessWarband.Presentation.UI
@@ -24,6 +26,9 @@ namespace CrownlessWarband.Presentation.UI
         }
 
         private readonly FloatingTextEntry[] _entries = new FloatingTextEntry[MaxEntries];
+        private BattleSandboxController _sandboxController;
+        private CombatEventPresenter _eventPresenter;
+        private bool _refsSearched;
 
         private bool _bannerActive;
         private string _bannerText = string.Empty;
@@ -141,6 +146,25 @@ namespace CrownlessWarband.Presentation.UI
 
         private void OnGUI()
         {
+            if (!_refsSearched)
+            {
+                _refsSearched = true;
+                _sandboxController = FindFirstObjectByType<BattleSandboxController>();
+                _eventPresenter = FindFirstObjectByType<CombatEventPresenter>();
+            }
+
+            if (_sandboxController != null)
+            {
+                if (_sandboxController.ScreenMode != SandboxScreenMode.ActiveBattle || _sandboxController.CurrentState == null)
+                {
+                    return;
+                }
+                if (!_sandboxController.IsDebugMode && _sandboxController.IsAnyModalOpen)
+                {
+                    return;
+                }
+            }
+
             EnsureStyles();
 
             Camera cam = Camera.main;
@@ -189,7 +213,13 @@ namespace CrownlessWarband.Presentation.UI
                 }
             }
 
-            if (_bannerActive && !string.IsNullOrEmpty(_bannerText))
+            bool isPostBattleModalShowing = _sandboxController != null &&
+                                            !_sandboxController.IsDebugMode &&
+                                            _sandboxController.CurrentState != null &&
+                                            TurnManager.IsBattleOver(_sandboxController.CurrentState) &&
+                                            (_eventPresenter == null || !_eventPresenter.IsPlayingEvents);
+
+            if (_bannerActive && !isPostBattleModalShowing && !string.IsNullOrEmpty(_bannerText))
             {
                 float t = Mathf.Clamp01(_bannerElapsed / _bannerDuration);
                 float alpha = 1f;
@@ -205,7 +235,7 @@ namespace CrownlessWarband.Presentation.UI
                 float bannerWidth = Mathf.Min(560f, Screen.width * 0.44f);
                 float bannerHeight = 36f;
                 float bannerX = (Screen.width * 0.5f) - (bannerWidth * 0.5f);
-                float bannerY = 88f - (bannerHeight * 0.5f);
+                float bannerY = Mathf.Max(68f, Screen.height * 0.105f);
 
                 Rect bgRect = new Rect(bannerX, bannerY, bannerWidth, bannerHeight);
                 Rect shadowRect = new Rect(bannerX + 1.5f, bannerY + 1.5f, bannerWidth, bannerHeight);

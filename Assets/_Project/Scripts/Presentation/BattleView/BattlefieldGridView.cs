@@ -28,6 +28,7 @@ namespace CrownlessWarband.Presentation.BattleView
         [Header("References")]
         [SerializeField] private BattleSandboxController sandboxController;
         [SerializeField] private CombatEventPresenter eventPresenter = null;
+        [SerializeField] private BattleArenaBackdropView arenaBackdrop;
 
         [Header("Optional Custom Sprites")]
         [SerializeField] private List<RoleSpriteEntry> roleSprites = new List<RoleSpriteEntry>();
@@ -63,6 +64,14 @@ namespace CrownlessWarband.Presentation.BattleView
             {
                 eventPresenter = FindFirstObjectByType<CombatEventPresenter>();
             }
+            if (arenaBackdrop == null)
+            {
+                arenaBackdrop = GetComponent<BattleArenaBackdropView>();
+                if (arenaBackdrop == null)
+                {
+                    arenaBackdrop = gameObject.AddComponent<BattleArenaBackdropView>();
+                }
+            }
 
             GetOrCreateDefaultSprite();
             EnsureContainers();
@@ -77,6 +86,7 @@ namespace CrownlessWarband.Presentation.BattleView
                 if (sandboxController == null)
                 {
                     SetGridVisible(false);
+                    arenaBackdrop?.SetBiomeAndVisible(BiomeType.RuinedCity, false);
                     return;
                 }
             }
@@ -85,6 +95,11 @@ namespace CrownlessWarband.Presentation.BattleView
                               sandboxController.CurrentState != null;
 
             SetGridVisible(shouldShow);
+
+            BiomeType currentBiome = shouldShow
+                ? sandboxController.CurrentState.ActiveBiome
+                : BiomeType.RuinedCity;
+            arenaBackdrop?.SetBiomeAndVisible(currentBiome, shouldShow);
 
             if (shouldShow)
             {
@@ -142,27 +157,27 @@ namespace CrownlessWarband.Presentation.BattleView
             {
                 switch (pos.Row)
                 {
-                    case RowType.Front: x = -1.20f; break;
-                    case RowType.Mid:   x = -2.35f; break;
-                    default:            x = -3.50f; break;
+                    case RowType.Front: x = -1.35f; break;
+                    case RowType.Mid:   x = -2.55f; break;
+                    default:            x = -3.75f; break;
                 }
             }
             else
             {
                 switch (pos.Row)
                 {
-                    case RowType.Front: x = 1.20f; break;
-                    case RowType.Mid:   x = 2.35f; break;
-                    default:            x = 3.50f; break;
+                    case RowType.Front: x = 1.35f; break;
+                    case RowType.Mid:   x = 2.55f; break;
+                    default:            x = 3.75f; break;
                 }
             }
 
             float y;
             switch (pos.Column)
             {
-                case 0:  y = 1.60f;  break;
-                case 1:  y = 0.0f;   break;
-                default: y = -1.60f; break;
+                case 0:  y = 1.78f;  break;
+                case 1:  y = 0.00f;  break;
+                default: y = -1.78f; break;
             }
 
             return new Vector3(x, y, 0f);
@@ -191,6 +206,7 @@ namespace CrownlessWarband.Presentation.BattleView
             }
 
             bool isPlaybackActive = eventPresenter != null && eventPresenter.IsPlayingEvents;
+            bool suppressOverheadGui = sandboxController != null && !sandboxController.IsDebugMode && sandboxController.IsAnyModalOpen;
             Sprite defaultSprite = GetOrCreateDefaultSprite();
             _activeUnitIds.Clear();
 
@@ -213,6 +229,7 @@ namespace CrownlessWarband.Presentation.BattleView
                 }
 
                 view.IsVisibleOnBattlefield = _isGridVisible;
+                view.SuppressOverheadGui = suppressOverheadGui;
                 Vector3 slotWorldPos = GetSlotWorldPosition(unit.Team, unit.Position);
                 bool isSelected = !string.IsNullOrEmpty(SelectedUnitId) && unit.InstanceId == SelectedUnitId;
                 view.SyncFromState(unit, slotWorldPos, isSelected, isPlaybackActive);
@@ -347,6 +364,11 @@ namespace CrownlessWarband.Presentation.BattleView
 
         private void SetGridVisible(bool visible)
         {
+            BiomeType currentBiome = (sandboxController != null && sandboxController.CurrentState != null)
+                ? sandboxController.CurrentState.ActiveBiome
+                : BiomeType.RuinedCity;
+            arenaBackdrop?.SetBiomeAndVisible(currentBiome, visible);
+
             if (_isGridVisible == visible) return;
             _isGridVisible = visible;
 
@@ -369,8 +391,38 @@ namespace CrownlessWarband.Presentation.BattleView
             }
         }
 
+        public void SelectUnitFromHud(string unitInstanceId)
+        {
+            if (sandboxController == null || sandboxController.CurrentState == null || string.IsNullOrEmpty(unitInstanceId))
+            {
+                return;
+            }
+
+            SelectedUnitId = unitInstanceId;
+            OnUnitSelected?.Invoke(SelectedUnitId);
+            UpdateSlotHighlights(sandboxController.CurrentState);
+            RefreshBattlefield(sandboxController.CurrentState);
+        }
+
+        private bool IsPointerBlockedByUi()
+        {
+            if (sandboxController != null && sandboxController.IsAnyModalOpen)
+            {
+                return true;
+            }
+
+            if (UnityEngine.EventSystems.EventSystem.current != null &&
+                UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject())
+            {
+                return true;
+            }
+
+            return false;
+        }
+
         private void HandleUnitClicked(string clickedInstanceId)
         {
+            if (IsPointerBlockedByUi()) return;
             if (sandboxController == null || sandboxController.CurrentState == null) return;
             BattleState state = sandboxController.CurrentState;
 
@@ -411,6 +463,7 @@ namespace CrownlessWarband.Presentation.BattleView
 
         private void HandleSlotClicked(FormationSlotView clickedSlot)
         {
+            if (IsPointerBlockedByUi()) return;
             if (clickedSlot == null || sandboxController == null || sandboxController.CurrentState == null) return;
             BattleState state = sandboxController.CurrentState;
 

@@ -37,28 +37,28 @@ namespace CrownlessWarband.Presentation.BattleView
             {
                 GameObject borderObj = new GameObject("TileBorder");
                 borderObj.transform.SetParent(transform, false);
-                borderObj.transform.localScale = new Vector3(1.30f, 1.30f, 1f);
+                borderObj.transform.localScale = new Vector3(1.22f, 1.22f, 1f);
                 _borderRenderer = borderObj.AddComponent<SpriteRenderer>();
                 _borderRenderer.sortingOrder = -2;
 
                 GameObject floorObj = new GameObject("TileFloor");
                 floorObj.transform.SetParent(transform, false);
-                floorObj.transform.localScale = new Vector3(1.20f, 1.20f, 1f);
+                floorObj.transform.localScale = new Vector3(1.18f, 1.18f, 1f);
                 _floorRenderer = floorObj.AddComponent<SpriteRenderer>();
                 _floorRenderer.sortingOrder = -1;
 
                 _isInitialized = true;
             }
 
-            _borderRenderer.sprite = defaultSquareSprite;
-            _floorRenderer.sprite = defaultSquareSprite;
+            _borderRenderer.sprite = ProceduralUnitArtFactory.GetRoundedTileOutlineSprite();
+            _floorRenderer.sprite = ProceduralUnitArtFactory.GetRoundedTileFloorSprite();
 
             _baseFloorColor = ResolveBaseColor(team, pos.Row);
             _baseBorderColor = new Color(
-                Mathf.Min(1f, _baseFloorColor.r * 1.45f + 0.08f),
-                Mathf.Min(1f, _baseFloorColor.g * 1.45f + 0.08f),
-                Mathf.Min(1f, _baseFloorColor.b * 1.45f + 0.08f),
-                0.85f
+                Mathf.Min(1f, _baseFloorColor.r * 1.45f + 0.14f),
+                Mathf.Min(1f, _baseFloorColor.g * 1.45f + 0.14f),
+                Mathf.Min(1f, _baseFloorColor.b * 1.45f + 0.14f),
+                0.55f
             );
 
             SetHighlighted(false, Color.white);
@@ -70,9 +70,9 @@ namespace CrownlessWarband.Presentation.BattleView
 
             if (highlighted)
             {
-                _borderRenderer.color = highlightColor;
-                _floorRenderer.color = Color.Lerp(_baseFloorColor, highlightColor, 0.38f);
-                _floorRenderer.color = new Color(_floorRenderer.color.r, _floorRenderer.color.g, _floorRenderer.color.b, 0.92f);
+                _borderRenderer.color = new Color(highlightColor.r, highlightColor.g, highlightColor.b, 0.95f);
+                Color lerpedFloor = Color.Lerp(_baseFloorColor, highlightColor, 0.45f);
+                _floorRenderer.color = new Color(lerpedFloor.r, lerpedFloor.g, lerpedFloor.b, 0.65f);
             }
             else
             {
@@ -92,22 +92,22 @@ namespace CrownlessWarband.Presentation.BattleView
             {
                 switch (row)
                 {
-                    case RowType.Front: return new Color(0.12f, 0.32f, 0.38f, 0.75f);
-                    case RowType.Mid: return new Color(0.10f, 0.24f, 0.34f, 0.75f);
-                    case RowType.Back: return new Color(0.08f, 0.18f, 0.28f, 0.75f);
+                    case RowType.Front: return new Color(0.12f, 0.34f, 0.42f, 0.32f);
+                    case RowType.Mid:   return new Color(0.10f, 0.25f, 0.36f, 0.32f);
+                    case RowType.Back:  return new Color(0.08f, 0.19f, 0.30f, 0.32f);
                 }
             }
             else
             {
                 switch (row)
                 {
-                    case RowType.Front: return new Color(0.38f, 0.14f, 0.14f, 0.75f);
-                    case RowType.Mid: return new Color(0.32f, 0.12f, 0.16f, 0.75f);
-                    case RowType.Back: return new Color(0.24f, 0.10f, 0.18f, 0.75f);
+                    case RowType.Front: return new Color(0.42f, 0.14f, 0.14f, 0.32f);
+                    case RowType.Mid:   return new Color(0.35f, 0.12f, 0.16f, 0.32f);
+                    case RowType.Back:  return new Color(0.26f, 0.10f, 0.18f, 0.32f);
                 }
             }
 
-            return new Color(0.15f, 0.15f, 0.20f, 0.75f);
+            return new Color(0.15f, 0.15f, 0.20f, 0.32f);
         }
     }
 }

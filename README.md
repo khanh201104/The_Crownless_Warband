@@ -1,7 +1,7 @@
 # The Crownless Warband (AI-Driven Tactical Roguelite)
-> **Tài liệu Thiết kế Game (GDD), Kiến trúc Kỹ thuật & Kế hoạch Triển khai Đồ án (9 Tuần)**  
+> **Tài liệu Thiết kế Game (GDD), Kiến trúc Kỹ thuật & Kế hoạch Triển khai Đồ án (12 Tuần)**  
 > **Sinh viên thực hiện:** Phạm Quốc Khánh — MSSV: 20225138 (Đại học Bách Khoa Hà Nội)  
-> **Phiên bản:** 1.0 (Cập nhật Tiến độ Tuần 1–4 & Lộ trình Hoàn thiện Tuần 5–9)  
+> **Phiên bản:** 2.0 (Hoàn thành Tuần 1–8 & Lộ trình Nâng cấp Đồ họa/UX-UI Tuần 9–12)  
 > **Thể loại:** Tactical Roguelite / Turn-based Auto Combat / Squad Strategy  
 > **Nền tảng:** PC | **Engine:** Unity 2D (C#) | **Chế độ:** Single-player  
 
@@ -13,7 +13,7 @@
 1. **Tách biệt Logic và Hiển thị (Humble Object Pattern — Phân tách 3 tầng bằng `.asmdef`):**
    - **`CrownlessWarband.Core` (`Assets/_Project/Scripts/Core/`):** Thuần C# 100% (Pure C#, tuyệt đối không kế thừa `MonoBehaviour`, không dùng `ScriptableObject`, không gọi `Debug.Log`). Trận đấu diễn ra bằng cách cập nhật `BattleState`, ghi vào `BattleState.CombatLog` và đẩy các `CombatEvent` vào `BattleState.EventQueue`.
    - **`CrownlessWarband.Data` (`Assets/_Project/Scripts/Data/`):** Chứa các định nghĩa `ScriptableObject` (`UnitDataSO`, `SkillDataSO`) để thiết kế dữ liệu trên Unity Inspector và chuyển đổi sang đối tượng Pure C# lúc Runtime.
-   - **`CrownlessWarband.Presentation` (`Assets/_Project/Scripts/Presentation/`):** Chứa các lớp `MonoBehaviour` đọc `BattleState` và tiêu thụ `EventQueue` để hiển thị đồ họa 2D, diễn hoạt `DOTween` và vẽ giao diện HUD / `F3 Explainable AI Debugger`.
+   - **`CrownlessWarband.Presentation` (`Assets/_Project/Scripts/Presentation/`):** Chứa các lớp `MonoBehaviour` đọc `BattleState` và tiêu thụ `EventQueue` để hiển thị đồ họa 2D, diễn hoạt Procedural Tweens / VFX và vẽ giao diện uGUI Canvas HUD / `F3 Explainable AI Debugger`.
 2. **Không có Pathfinding & Di chuyển tự do trong trận:**
    - Chiến trường sử dụng hệ thống **Formation Slot cố định** (3 hàng: `Front`, `Mid`, `Back`, mỗi hàng 3 cột `0..2`). Tuyệt đối không sinh code tìm đường (`A*`, `NavMesh`) hay tính khoảng cách vật lý trong logic tính toán.
 3. **AI là "Bạch hộp" (Explainable Utility AI), KHÔNG dùng Machine Learning hộp đen:**
@@ -101,9 +101,9 @@ Một trận đấu thành công phải khiến người chơi cảm nhận rõ:
 
 ---
 
-## 3. TỔNG HỢP TIẾN ĐỘ ĐÃ HOÀN THÀNH (TUẦN 1 – TUẦN 4)
+## 3. TỔNG HỢP TIẾN ĐỘ ĐÃ HOÀN THÀNH (TUẦN 1 – TUẦN 8)
 
-Toàn bộ tầng **Core Logic, AI Engine, Roguelite Campaign, Data SO, Save/Load JSON và QA Automated Testing** đã hoàn thành **100%** với 19 file C# hiện có:
+Toàn bộ tầng **Core Logic, AI Engine, Roguelite Campaign, Data SO, Save/Load JSON, Sàn đấu 2D cơ bản, Diễn hoạt theo sự kiện, Endless Mode & Âm thanh Procedural** đã hoàn thành **100%**:
 
 ### ✅ Tuần 1 (Milestone 1): Nền tảng Core Battle System (Pure C#)
 - Thiết lập kiến trúc 3 tầng `.asmdef` (`CrownlessWarband.Core`, `CrownlessWarband.Data`, `CrownlessWarband.Presentation`).
@@ -126,147 +126,131 @@ Toàn bộ tầng **Core Logic, AI Engine, Roguelite Campaign, Data SO, Save/Loa
 - Tạo `SkillDataSO.cs` và `UnitDataSO.cs`.
 - Xây dựng `AIBatchSimulator.cs` (chạy 100 trận 5v5 trong $\sim 620\text{ ms}$) và `QAAndBalanceAuditor.cs` đạt `[PASS]` toàn bộ Invariants, Save/Load JSON và tỷ lệ thắng chuẩn ($74.0\%\text{ Win Rate}$).
 
----
+### ✅ Tuần 5 (Milestone 5): Sàn đấu 2D, Đội hình $3 \times 3$ & Tương tác Xếp vị trí
+- Xây dựng `FormationSlotView.cs`, `UnitVisualView.cs` và `BattlefieldGridView.cs` (18 ô $3 \times 3$ cho 2 phe, procedural fallback sprite sắc nét theo màu Role, thanh HP/Shield/Energy & nhãn trạng thái).
+- Hỗ trợ click chọn nhân vật đồng bộ với `AIDebugOverlayUI.cs` và đổi vị trí đứng (`Formation Swap`) trong pha `Planning` (Turn 1) kèm đánh giá lại `SquadAI`.
+- Tái cấu trúc `BattleSandboxController.cs` theo bố cục 3 cột (`28% - 45% - 27%`) nhường trung tâm cho Sàn đấu 2D.
 
-## 4. KẾ HOẠCH CHI TIẾT 5 TUẦN CÒN LẠI (TUẦN 5 – TUẦN 9)
+### ✅ Tuần 6 (Milestone 6): Diễn hoạt Chiến đấu Thời gian thực & Floating Combat Text
+- Xây dựng `FloatingTextView.cs` với **Object Pool** 40 phần tử struct (zero-GC), tự chống chồng chữ và hiển thị Banner chiến thuật `SquadAI` phía trên sàn đấu.
+- Bổ sung hệ thống **Procedural Mathematical Tweens** ngay trong `UnitVisualView.cs` (Attack Lunge, Guardian Intercept Slide, Hit Shake, Scale Pulse, Color Flash, Acting Turn Ring vàng) mà không cần thư viện ngoài.
+- Xây dựng `CombatEventPresenter.cs` tiêu thụ `BattleState.EventQueue` với 4 mức tốc độ (`1x`, `2x`, `4x`, `Instant`), nút `Pause/Resume`, `Step Next Event`, `Skip` và chế độ `Auto-Follow` cho `F3 AI Debug`.
 
-Mục tiêu của 5 tuần cuối là chuyển hóa toàn bộ phần lõi Pure C# đã hoàn chỉnh thành một **trò chơi 2D trực quan, sinh động trên Unity**, bổ sung đầy đủ các tính năng **Must Have / Should Have / Could Have** trong GDD và đóng gói bản dựng `.exe` sẵn sàng bảo vệ đồ án.
+### ✅ Tuần 7 (Milestone 7): Chiều sâu GDD (Mission Objectives, Biomes, Skill Modes & Data SO)
+- Mở rộng 3 `MissionType` (`Assault`, `Survival`, `Elimination` với huy hiệu `[VIP]`) và 3 `BiomeType` (`RuinedCity`, `IndustrialZone`, `LabComplex` kèm đổi màu nền Camera) trong Core & Presentation.
+- Cập nhật `TargetEvaluator` (ưu tiên VIP $+45\text{f}$) và `SquadAI` (`FocusFire` với VIP / ưu tiên `ProtectBackline` khi `Survival`); bổ sung node `Shop` trên `CampaignMap`.
+- Hoàn thiện chuyển đổi `Auto / SemiAuto / Manual` cho từng kỹ năng đặc biệt + nút `[CAST]` chọn mục tiêu thủ công; tạo `ContentDatabaseSO.cs` và menu `Tools -> Crownless Warband -> Generate Default ScriptableObject Assets`.
 
----
-
-### 📅 TUẦN 5 (Milestone 5): Trực quan hóa Sàn đấu 2D, Đội hình $3 \times 3$ & Tương tác Xếp vị trí
-**Mục tiêu:** Thay thế cảm giác "chơi trên bảng chữ" bằng một **Sàn đấu 2D (Battlefield Scene View)** nằm ở trung tâm màn hình, hiển thị trực quan 2 lưới đội hình $3 \times 3$, nhân vật 2D, thanh máu/giáp/năng lượng, icon trạng thái và cho phép đổi vị trí đứng (`Formation`) trước khi vào pha giao chiến.
-
-#### 🤖 Phần việc do AI Coding Agent thực hiện (Code C#):
-1. **`FormationSlotView.cs` (`CrownlessWarband.Presentation.BattleView`):**
-   - Hiển thị từng ô đứng `(TeamSide, RowType, Column)` trên không gian 2D (`SpriteRenderer` hoặc World UI).
-   - Đổi màu viền ô theo hàng (`Front`: Đỏ/Cam, `Mid`: Vàng, `Back`: Xanh) và sáng lên khi người chơi chọn đổi vị trí nhân vật hoặc chọn mục tiêu kỹ năng `Manual`.
-2. **`UnitVisualView.cs` (`CrownlessWarband.Presentation.BattleView`):**
-   - Gắn với một `UnitState` cụ thể; tự động dựng Sprite nhân vật theo `UnitRole` & `TeamSide`, vẽ thanh `HP Bar` (xanh/đỏ), `Shield Bar` (xanh dương), `Energy Bar` (vàng) và các nhãn trạng thái nổi bật (`[STUN]`, `[MARK]`, `[PROTECT]`, `[PHASE 2/3]`, `[AFFIX]`).
-   - Hỗ trợ sự kiện click chuột vào nhân vật trên sàn đấu 2D để:
-     - Chọn xem ngay bảng phân tích điểm số của nhân vật đó trên **F3 AI Debug Inspector**.
-     - Chọn nhân vật để đổi ô đứng (`Formation Swap`) trong pha `Planning` (Turn 1).
-3. **`BattlefieldGridView.cs` (`CrownlessWarband.Presentation.BattleView`):**
-   - Quản lý toàn bộ 18 ô lưới ($9$ ô Player bên trái, $9$ ô Enemy bên phải) và đồng bộ vị trí của mọi `UnitVisualView` theo `BattleSandboxController.CurrentState`.
-   - Tự động khởi tạo (procedural fallback) các GameObject/SpriteRenderer 2D ngay bằng code nếu người dùng chưa kéo thả Prefab thủ công, đảm bảo bấm Play là thấy ngay sàn đấu 2D.
-4. **Cập nhật nhẹ `BattleSandboxController.cs`:**
-   - Thu gọn chiều rộng bảng điều khiển bên trái để nhường không gian chính giữa màn hình cho **Sàn đấu 2D** (Bố cục 3 cột chuẩn: *Trái: Điều khiển & Log* — *Giữa: Sàn đấu 2D* — *Phải: Bảng F3 AI Debug*).
-
-#### 🛠️ Phần việc BẠN cần thao tác trên Unity Editor (Tuần 5):
-1. Mở scene chính (`Assets/_Project/Scenes/MainScene.unity` hoặc scene hiện tại bạn đang dùng).
-2. Chọn `Main Camera` trong Hierarchy:
-   - Chuyển `Projection` sang **Orthographic**, đặt `Size = 5.5`, `Position = (0, 0, -10)`.
-   - Chỉnh màu nền `Background` sang tông tối chiến thuật (ví dụ: `#161A22`).
-3. Tạo một Empty GameObject tên là `BattlefieldVisualizer` trong Hierarchy, gắn script `BattlefieldGridView` vào và kéo thả tham chiếu `BattleSandboxController` vào ô tương ứng trên Inspector.
-4. *(Tùy chọn nâng cao thẩm mỹ)* Nếu bạn có bộ ảnh Sprite 2D riêng cho 5 Class (`Guardian`, `Vanguard`, `Ranger`, `Mage`, `Medic`) và Boss `The Warden`, kéo thả chúng vào danh sách `RoleSprites` trên Inspector của `BattlefieldGridView` (nếu để trống, code sẽ tự sinh hình khối 2D sắc nét theo màu Role).
+### ✅ Tuần 8 (Milestone 8): Âm thanh Procedural, Endless Mode, Adaptive Profile & Turn Order Bar
+- Xây dựng `BattleAudioManager.cs` tự tổng hợp 9 sóng âm `AudioClip` (22050 Hz) bằng toán học kèm nút `[SFX: ON/OFF]`.
+- Bổ sung `PlayerBehaviorProfile.cs` theo dõi lối chơi và kích hoạt **Adaptive Difficulty / Counter-Strategies** (tăng `Assassin`/Affix khi người chơi thiên về Ranged/Buff), đồng thời mở **Endless Mode (`Floor 5+`)** sinh Boss mỗi 3 tầng và tự cuộn bản đồ chiến dịch.
+- Bổ sung `Turn Order Bar` (`Speed Queue`) phía trên sàn đấu, đồng bộ **pre-turn display snapshot** và xử lý ẩn/mờ dứt điểm các unit đã tử trận (`UnitDied`).
 
 ---
 
-### 📅 TUẦN 6 (Milestone 6): Diễn hoạt Chiến đấu Thời gian thực với DOTween & Floating Combat Text
-**Mục tiêu:** Giải quyết bài toán quan trọng nhất của GDD Mục 10 & Mục 43: Biến hàng đợi `BattleState.EventQueue` (`Queue<CombatEvent>`) thành chuỗi diễn hoạt chiến đấu tuần tự theo thời gian thực bằng thư viện **DOTween**, giúp người xem nhìn rõ từng đòn đánh, pha đỡ đòn của Guardian, hiệu ứng Stun/Mark và sự kiện đổi chiến thuật của `SquadAI`.
+## 4. KẾ HOẠCH CHI TIẾT 4 TUẦN CÒN LẠI (TUẦN 9 – TUẦN 12)
 
-#### 🤖 Phần việc do AI Coding Agent thực hiện (Code C#):
-1. **`FloatingTextView.cs` (`CrownlessWarband.Presentation.UI`):**
-   - Hiển thị chữ nổi bay lên tại vị trí nhân vật khi có sự kiện: Sát thương (`-45` màu đỏ/cam), Chí mạng/Execute (`-78!` phóng to), Hồi máu (`+52` màu xanh lá), Tạo khiên (`+60 SHIELD` màu xanh lam), Khống chế (`STUNNED!` / `MARKED!`) và Đổi chiến thuật đội (`[SQUAD: PROTECT BACKLINE!]`).
-   - Sử dụng `DOTween` (`DOMoveY`, `DOFade`, `DOPunchScale`) và cơ chế **Object Pool** (tái sử dụng đối tượng, không gọi `Instantiate`/`Destroy` liên tục trong trận).
-2. **`CombatEventPresenter.cs` (`CrownlessWarband.Presentation.BattleView`):**
-   - Đọc tuần tự từng `CombatEvent` từ `BattleState.EventQueue` thông qua Coroutine điều khiển nhịp độ.
-   - Hỗ trợ 4 chế độ tốc độ diễn hoạt: **`1x` (Chuẩn để thuyết trình giải thích AI)**, **`2x` (Nhanh)**, **`4x` (Siêu tốc)** và **`Instant` (Chạy tức thì)**.
-   - Kích hoạt diễn hoạt `DOTween` tương ứng trên `UnitVisualView`:
-     - `UnitTurnStarted`: Sáng vòng chân nhân vật đang tới lượt và tự động focus nhân vật đó lên bảng `F3 AI Debug`.
-     - `SkillUsed`: Nhân vật lao nhẹ về phía mục tiêu (`DOPunchPosition`), hiển thị tên kỹ năng.
-     - `InterceptionTriggered`: `Guardian` trượt nhanh ra chắn trước mặt đồng đội đang được bảo vệ (`DOMove` tới vị trí chắn đòn rồi quay về).
-     - `DamageDealt`: Mục tiêu rung lắc (`DOShakePosition`), nháy đỏ và cập nhật thanh HP/Shield mượt mà.
-     - `UnitDied`: Nhân vật mờ dần (`DOFade`) và đổi trạng thái gục ngã.
-3. **Cập nhật `CrownlessWarband.Presentation.asmdef` & `BattleSandboxController.cs`:**
-   - Thêm nút chọn tốc độ `Playback Speed: [1x] [2x] [4x] [Instant]` và nút `[Pause / Step Next Event]` để bạn có thể **dừng hình ngay giữa lượt** khi đang thuyết trình trước Hội đồng.
-
-#### 🛠️ Phần việc BẠN cần thao tác trên Unity Editor (Tuần 6):
-1. Kiểm tra cài đặt **DOTween**:
-   - Trên thanh menu Unity, vào `Tools -> Demigiant -> DOTween Utility Panel` $\rightarrow$ bấm **Setup DOTween...** $\rightarrow$ bấm **Apply** để Unity tạo các file Assembly Definition của DOTween.
-   - Click vào file `Assets/_Project/Scripts/Presentation/CrownlessWarband.Presentation.asmdef` trong cửa sổ Project, tại mục **Assembly Definition References**, kiểm tra đã có `DOTween.Modules` (nếu Agent chưa thêm hoặc Unity yêu cầu Apply).
-2. Trong `MainScene`, gắn component `CombatEventPresenter` vào GameObject `BattlefieldVisualizer` và kéo tham chiếu `BattlefieldGridView` + `BattleSandboxController` vào Inspector.
-3. Bấm **Play**, nhấn `SPACE` ở tốc độ `1x` để kiểm tra hiệu ứng nhân vật lao lên đánh, Guardian nhảy ra đỡ đòn và chữ sát thương bay lên.
+> **Định hướng giai đoạn cuối:** Dành trọn **3 tuần (Tuần 9, 10, 11)** để nâng cấp toàn diện **Game Flow + Giao diện `uGUI Canvas` (Tuần 9) $\rightarrow$ Bản đồ Đường đi Có Nhân vật + Tạo hình Nhân vật & Đấu trường 2D (Tuần 10) $\rightarrow$ VFX Chiến đấu/Juice & Hoàn thiện (Tuần 11)** bằng bộ skill `.agents/skills/ux-design`, `.agents/skills/ux-review`, `.agents/skills/visual-polish-2d` và `ui-ugui`. Toàn bộ **giao diện Sandbox/Tab thử nghiệm hiện tại sẽ được đưa vào Debug Mode**, và **Bộ Phím tắt Demo Hội đồng (`F1–F7`), QA Audit cuối & Đóng gói `.exe` thực hiện ở Tuần 12**.
 
 ---
 
-### 📅 TUẦN 7 (Milestone 7): Hoàn thiện Chiều sâu GDD (Mission Objectives, Biomes, Skill Modes & Data-Driven SO)
-**Mục tiêu:** Lấp đầy toàn bộ các yêu cầu **Must Have & Should Have** còn lại trong GDD (Mục 13, 30, 32, 37, 47) để hệ thống chiến dịch và AI đa dạng đúng chuẩn thiết kế.
+### 📅 TUẦN 9 (Milestone 9 — Đồ họa Tuần 1/3): Game Flow (Main Menu, Settings, Debug Mode) & HUD Chiến đấu `uGUI Canvas`
+**Mục tiêu:** Chuyển từ màn hình Sandbox sang cấu trúc game hoàn chỉnh (**Main Menu $\rightarrow$ Map/Battle $\rightarrow$ Settings**), gom toàn bộ các tab công cụ hiện tại vào **Debug Mode** ẩn gọn, và dựng mới HUD chiến đấu toàn màn hình bằng `uGUI Canvas` theo bố cục RPG hiện đại (tham chiếu ảnh mẫu: *Top-Left Status, Top-Center Turn Banner, Top-Right Icon Controls, Bottom-Left Hero Portrait Cards, Bottom-Right Circular Skill Orbs*).
 
-#### 🤖 Phần việc do AI Coding Agent thực hiện (Code C#):
-1. **Mở rộng 3 Loại Nhiệm vụ (`MissionType` — GDD Mục 37) & 3 Khu vực (`BiomeType` — GDD Mục 32):**
-   - Cập nhật `BattleEnums.cs`, `BattleState.cs` và `TurnManager.cs` hỗ trợ 3 loại nhiệm vụ chiến đấu:
-     1. `Assault`: Tiêu diệt toàn bộ kẻ địch (mặc định).
-     2. `Survival`: Sống sót qua $N$ lượt (ví dụ: trụ vững 6 lượt trước đợt tấn công dữ dội của địch là Thắng).
-     3. `Elimination`: Hạ gục 1 mục tiêu Chỉ huy (`IsPriorityObjective = true`) của địch để lập tức giành chiến thắng mà không cần diệt hết lính phụ.
-   - Cập nhật `TargetEvaluator.cs` & `SquadAI.cs`:
-     - Khi nhiệm vụ là `Elimination`, AI tự động cộng trọng số `StrategicValue` lớn lên mục tiêu VIP của địch.
-     - Khi nhiệm vụ là `Survival`, `SquadAI` ưu tiên chuyển sang `Defensive` / `ProtectBackline` khi máu đồng minh giảm để câu giờ chiến thắng.
-   - Bổ sung 3 `BiomeType` (`RuinedCity` - Thành phố đổ nát, `IndustrialZone` - Khu công nghiệp, `LabComplex` - Khu thí nghiệm) vào `CampaignModel.cs` & `CampaignGenerator.cs`, kèm lựa chọn `Shop / Event` đa dạng hơn.
-2. **Hoàn thiện Chế độ Kỹ năng (`Auto` / `SemiAuto` / `Manual` — GDD Mục 13):**
-   - Cho phép người chơi click đổi trực tiếp chế độ `Auto` $\leftrightarrow$ `SemiAuto` $\leftrightarrow$ `Manual` của từng kỹ năng đặc biệt (`Skill1`, `Ultimate`) trên bảng điều khiển, và cho phép chọn mục tiêu chỉ định khi kích hoạt kỹ năng `Manual` trong pha `Planning`.
-3. **Hoàn thiện Hệ thống `ScriptableObject` (`ContentDatabaseSO.cs` & Editor Menu):**
-   - Tạo `ContentDatabaseSO.cs` trong `CrownlessWarband.Data` và một script tiện ích trong `Editor` giúp tự động sinh ra các file `.asset` mẫu (`Guardian_SO`, `Vanguard_SO`, `Ranger_SO`, `Mage_SO`, `Medic_SO`, `TheWarden_SO` và bộ kỹ năng) chỉ bằng 1 cú click menu trên Unity Editor.
+#### 🤖 Phần việc do AI Coding Agent thực hiện (Code C# & Skill `ux-design` + `ui-ugui` + `ux-review`):
+1. **Màn hình Main Menu, Cài đặt (Settings) & Quản lý Luồng Game (`MainMenuView.cs` / `GameShellController.cs`):**
+   - **Main Menu:** Nút **Chơi mới** (`New Run` kèm nhập Seed tùy chọn), **Tiếp tục** (`Continue` tự động kiểm tra và nạp từ `crownless_run.save.json`), **Cài đặt** (`Settings`), **Thoát** (`Quit`), và 1 nút/phím mở nhanh **Debug Sandbox**.
+   - **Bảng Cài đặt (Settings Modal — mở được cả ở Main Menu và nút ⚙️ trong trận):** Chỉnh Âm thanh (`SFX ON/OFF`, Âm lượng SFX), Tốc độ diễn hoạt mặc định (`1x / 2x / 4x`), Độ phân giải & Chế độ màn hình (`Fullscreen Window` / `Windowed`).
+2. **Tách Toàn bộ Giao diện Tab Hiện tại vào Debug Mode:**
+   - Gom các tab hiện có (`Battle Simulator`, `Campaign Map Debug`, `AI Batch Simulator`, `QA Auditor`, `Combat Log` chi tiết, thông số thô) vào **Debug Overlay Drawer** bật/tắt bằng phím `F8` (hoặc nút icon `[DBG]` ở góc trên phải); bình thường khi chơi game các tab này ẩn hoàn toàn để nhường toàn bộ màn hình cho đấu trường.
+   - Phím **`F3` (Explainable AI Debugger)** giữ nguyên chức năng bật/tắt bảng giải thích công thức AI trượt gọn ở cạnh phải khi cần thuyết trình hoặc kiểm tra.
+3. **HUD Chiến đấu Toàn màn hình `uGUI Canvas` (`BattleHudView.cs` — Reference `1920x1080`):**
+   - **Góc Trên-Trái (Top-Left):** Huy hiệu trạng thái gọn (Loại nhiệm vụ `Assault/Survival/Elimination`, `Floor/Turn`, `Biome`, `Relics`).
+   - **Giữa Trên (Top-Center):** Banner **`Round / Turn`** sắc nét (kèm thanh máu Boss *The Warden* có vạch ngưỡng `65% / 35%` ngay bên dưới khi đấu Boss và thông báo ngắn `SquadAI`).
+   - **Góc Trên-Phải (Top-Right):** Hàng nút icon nhỏ gọn (`1x/2x/4x`, `Pause/Step`, `Settings ⚙️` — chứa tùy chỉnh SFX bên trong, `F3 AI`, `F8 Debug`).
+   - **Góc Dưới-Trái (Bottom-Left):** Dãy **Thẻ Chân dung Nhân vật Đồng minh (Ally Portrait Cards)** có viền phát sáng theo nhân vật đang tới lượt/đang chọn, thanh `HP` & `Energy/Shield` nằm gọn ngay dưới mỗi thẻ; click thẻ để chọn nhân vật hoặc mở nhanh bảng chỉnh `AI Policy`.
+   - **Góc Dưới-Phải (Bottom-Right):** Cụm **Nút Kỹ năng Hình tròn (Circular Skill Orbs)** hiển thị kỹ năng của nhân vật, huy hiệu chế độ `Auto / SemiAuto / Manual`, nút `[CAST]` và nút bắt đầu lượt `[SPACE]`.
+   - **Post-Battle Rewards, Shop & Rest Modal:** Dựng bằng thẻ bài `uGUI Canvas` đồng bộ phong cách thị giác mới.
 
-#### 🛠️ Phần việc BẠN cần thao tác trên Unity Editor (Tuần 7):
-1. Trên thanh menu Unity Editor, bấm vào menu tự động (do Agent tạo): `Tools -> Crownless Warband -> Generate Default ScriptableObject Assets`.
-   - Kiểm tra thư mục `Assets/_Project/ScriptableObjects/` sẽ xuất hiện đầy đủ các file `.asset` của Nhân vật, Quái, Boss và Kỹ năng (rất quan trọng để mở lên trình diễn tính chất **Data-Driven Architecture** khi thầy cô hỏi).
-2. Kéo file `DefaultContentDatabase.asset` vào ô `Content Database` trên Inspector của `BattleSandboxController`.
-3. Chạy thử 1 Run trên Campaign Map qua các node có nhiệm vụ `Survival` và `Elimination` để quan sát AI tự thay đổi mục tiêu ưu tiên.
+#### 🛠️ Phần việc BẠN cần thao tác trên Unity Editor (Tuần 9):
+1. Nếu Unity hỏi cài **TMP Essentials** khi tạo UI TextMeshPro, bấm **Import TMP Essential Resources** (hoặc vào `Window -> TextMeshPro -> Import TMP Essential Resources`).
+2. Mở `Assets/Scenes/SampleScene.unity`, bấm **Play** kiểm tra luồng `Main Menu -> Chơi mới / Tiếp tục / Cài đặt`, kiểm tra HUD chiến đấu ở cả **`1920x1080`** và **`1280x720`**, và bấm `F8` / `F3` xác nhận Debug Mode bật/tắt sạch sẽ.
 
 ---
 
-### 📅 TUẦN 8 (Milestone 8): Âm thanh (SFX), Endless Mode, Player Behavior Profile & Đánh bóng UI/UX
-**Mục tiêu:** Bổ sung các tính năng điểm cộng nâng cao (**Could Have** trong GDD Mục 40, 41, 43) và hoàn thiện hiệu ứng âm thanh, thanh thứ tự lượt đi (`Turn Order Bar`) để trải nghiệm game tròn trịa, chuyên nghiệp.
+### 📅 TUẦN 10 (Milestone 10 — Đồ họa Tuần 2/3): Bản đồ Chiến dịch Có Đường đi & Nhân vật Di chuyển + Tạo hình Nhân vật & Sàn đấu 2D
+**Mục tiêu:** Thay thế hoàn toàn kiểu chọn node bằng nút bấm chữ hiện tại bằng **Bản đồ 2D vẽ đầy đủ có con đường quanh co, nhân vật của người chơi đi dọc theo con đường và các lựa chọn (Nodes) đặt trực tiếp trên đường**; đồng thời nâng cấp tạo hình nhân vật 2D & phông nền đấu trường toàn màn hình hài hòa với HUD mới.
 
-#### 🤖 Phần việc do AI Coding Agent thực hiện (Code C#):
-1. **Hệ thống Âm thanh Tự chủ (`BattleAudioManager.cs` — `CrownlessWarband.Presentation.BattleView`):**
-   - Phát âm thanh phản hồi cho mọi sự kiện chiến đấu: Đòn đánh thường, Kỹ năng đặc biệt, Chí mạng/Execute, Tạo khiên, Hồi máu, Làm choáng (`Stun`), Guardian đỡ đòn (`Intercept`), Boss chuyển Phase và Chiến thắng/Thất bại.
-   - **Tích hợp bộ tổng hợp âm thanh Procedural (Retro/Tactical Synth AudioClip):** Tự động tạo sóng âm `AudioClip` ngay trong bộ nhớ nếu bạn chưa gắn file `.wav`/`.mp3` bên ngoài, giúp game **có âm thanh chiến đấu sống động ngay lập tức 100%** mà không lo thiếu asset.
-2. **Endless Mode & Hồ sơ Hành vi Người chơi (`PlayerBehaviorProfile.cs` — GDD Mục 40 & 41):**
-   - Sau khi đánh bại Boss *The Warden* ở Tầng 4, mở nút **`[Enter Endless Mode (Floor 5+)]`** sinh các tầng tiếp theo với `Threat` và `Corruption` tăng dần cùng tổ hợp nhiều `EnemyAffix`.
-   - Ghi nhận thống kê phong cách chỉ huy của người chơi (`PlayerBehaviorProfile`: Tỷ lệ dùng Ranged/AoE, số lần can thiệp `Manual Skill`, khuynh hướng chọn `BehaviorPreset`, thời lượng trận trung bình) và tích hợp cơ chế **Adaptive Encounter** (nếu người chơi lạm dụng Ranged DPS $>70\%$, các tầng sau tự động tăng tỷ lệ xuất hiện `Assassin/Diver` của địch).
-3. **Nâng cấp Thanh Thứ tự Tốc độ (`TurnOrderBarUI`) & Bố cục HUD:**
-   - Hiển thị thanh ngang phía trên sàn đấu 2D liệt kê thứ tự hành động của các nhân vật trong lượt theo `Speed` (`Initiative Queue`), giúp người chơi dễ dàng quyết định thời điểm can thiệp.
+#### 🤖 Phần việc do AI Coding Agent thực hiện (Code C# & Skill `visual-polish-2d` + `ux-design`):
+1. **Bản đồ Chiến dịch 2D Có Đường đi & Nhân vật Bước Trên Đường (`CampaignWorldMapView.cs` & `MapNodeMarkerView.cs`):**
+   - Vẽ cảnh quan bản đồ 2D hoàn chỉnh theo từng `BiomeType` (`RuinedCity`, `IndustrialZone`, `LabComplex`) và **con đường quanh co nối liền các nhánh Node** (`Floor 0` $\rightarrow$ `Floor 4+` Endless, hỗ trợ cuộn/pan mượt mà theo tiến trình tầng).
+   - Các **Node lựa chọn** (`Battle`, `Elite`, `Shop`, `Rest`, `Boss`) được đặt trực tiếp thành các điểm mốc trên con đường (có biểu tượng trực quan, trạng thái đã đi / có thể chọn / bị khóa và thẻ preview thông tin khi rê chuột), thay thế hoàn toàn giao diện nút bấm bảng thô.
+   - Hiển thị **Nhân vật Đại diện của Người chơi (Player Map Avatar)** đứng tại node hiện tại; khi người chơi click chọn node tiếp theo, nhân vật tự động **di chuyển dọc theo đường nối** tới node đó trước khi mở trận chiến / Shop / Rest.
+2. **Tạo hình Nhân vật 2D & Đấu trường Toàn màn hình (`ProceduralUnitArtFactory.cs`, `UnitVisualView.cs`, `BattlefieldGridView.cs`):**
+   - Mở rộng sân đấu 2D chiếm trọn vùng trung tâm toàn màn hình giống ảnh mẫu: dựng phông nền môi trường có chiều sâu cho 3 Biomes + sàn đấu đá/đất tinh tế tích hợp lưới $3 \times 3$ (bỏ cảm giác khung debug khối vuông).
+   - Thay ô vuông đơn sắc bằng tạo hình 2D có viền giáp, vũ khí/biểu tượng đặc trưng cho 5 Class (`Guardian`, `Vanguard`, `Ranger`, `Mage`, `Medic`), kẻ địch và Boss *The Warden*, kèm bóng đổ elip dưới chân (`Drop Shadow`), vẫn ưu tiên dùng sprite PNG nếu người dùng kéo vào `RoleSprites`.
+   - Làm gọn thanh trạng thái trên đầu mỗi nhân vật giống ảnh mẫu (viên kim cương chỉ vai trò/cấp + thanh HP/Shield/Energy sát gọn).
+   - Kết hợp `Global Light 2D` trong URP để tạo ánh sáng môi trường tách lớp nhân vật và nền.
 
-#### 🛠️ Phần việc BẠN cần thao tác trên Unity Editor (Tuần 8):
-1. Trong cửa sổ **Game View** của Unity, chuyển độ phân giải từ `Free Aspect` sang **`Full HD (1920x1080)`** để cố định tỷ lệ khung hình chuẩn khi demo và quay video.
-2. Thêm một GameObject `AudioManager` vào `MainScene`, gắn script `BattleAudioManager` (và tùy chọn kéo thả các file nhạc nền/SFX `.wav` của bạn vào Inspector nếu muốn thay thế âm thanh synth mặc định).
-3. Chơi thử qua Tầng 4 và bấm vào **Endless Mode** để kiểm tra độ mượt của giao diện.
+#### 🛠️ Phần việc BẠN cần thao tác trên Unity Editor (Tuần 10):
+1. Trong `Assets/Scenes/SampleScene.unity`, kiểm tra `Main Camera` (Orthographic Size `5.5`) và `Global Light 2D` đảm bảo bật URP 2D bình thường.
+2. Bấm **Play** $\rightarrow$ **Chơi mới**, đi qua Bản đồ 2D xem nhân vật di chuyển trên con đường qua các Node và vào trận xem tạo hình 5 Class + Boss + 3 Biomes *(tùy chọn: bạn có thể kéo bộ Sprite PNG nhân vật hoặc ảnh nền riêng vào Inspector nếu muốn dùng art vẽ tay)*.
 
 ---
 
-### 📅 TUẦN 9 (Milestone 9): Hệ thống Phím tắt Demo Bảo vệ Đồ án (F1–F8), Kiểm thử QA Cuối & Đóng gói `.exe`
-**Mục tiêu:** Đảm bảo buổi bảo vệ đồ án diễn ra hoàn hảo: Chỉ cần bấm 1 phím tắt là tái hiện ngay lập tức bất kỳ kịch bản AI nào mà Hội đồng chấm thi yêu cầu, vượt qua 100% bài test tự động và xuất file thực thi `.exe`.
+### 📅 TUẦN 11 (Milestone 11 — Đồ họa Tuần 3/3): Hiệu ứng Chiến đấu VFX/Juice 2D, Micro Camera Shake & Kiểm duyệt `/ux-review` Toàn diện
+**Mục tiêu:** Bổ sung lớp hiệu ứng chiến đấu VFX/Juice cho tạo hình nhân vật 2D mới, thanh máu tụt mượt và kiểm duyệt toàn bộ luồng từ Main Menu $\rightarrow$ Map đường đi $\rightarrow$ Đấu trường $\rightarrow$ Debug Mode đạt chuẩn chất lượng.
+
+#### 🤖 Phần việc do AI Coding Agent thực hiện (Code C# & Skill `visual-polish-2d` + `ux-review`):
+1. **Hệ thống VFX Pooling (`CombatVfxManager.cs` — `CrownlessWarband.Presentation.BattleView`):**
+   - Tạo **Object Pool** hiệu ứng 2D procedural (zero-GC trong lúc chiến đấu):
+     - **Vệt chém (`Slash Arc`)** khi cận chiến (`Vanguard`, `Guardian`, `The Warden`).
+     - **Tia đạn năng lượng (`Projectile Trail`)** bay từ `Ranger` / `Mage` tới mục tiêu.
+     - **Sóng xung kích (`Shockwave Ring`)** cho chiêu AoE (`Earthshatter Sweep`, `Arcane Tempest`), `Stun`, `Intercept` và hiệu ứng hồi máu / tạo khiên (`Heal Sparkle`, `Shield Dome`).
+     - **Bùng nổ chuyển Phase Boss** khi *The Warden* kích hoạt Phase 2 (`<= 65%`) và Phase 3 (`<= 35%`).
+2. **Thanh Máu Tụt Mượt & Micro Camera Shake (`UnitVisualView.cs` & `CombatEventPresenter.cs`):**
+   - Bổ sung lớp **Damage Trail** trên thanh HP (phần máu mất đi tụt trễ nhịp màu trắng/cam giúp nhìn rõ độ lớn sát thương vừa nhận).
+   - Bổ sung **Micro Camera Shake** nhẹ khi trúng đòn Chí mạng / `Execute`, `Ultimate` hoặc Boss chuyển Phase.
+3. **Nghiệm thu Toàn diện bằng Skill `/ux-review`:**
+   - Kiểm tra toàn bộ 5 trụ cột của `.agents/skills/ux-review/SKILL.md` xuyên suốt `Main Menu -> Campaign World Map -> Active Battle HUD -> Reward/Shop -> Debug Mode (F8/F3)` ở cả `1920x1080` và `1280x720`, sửa triệt để tới khi đạt **`APPROVED`**.
+
+#### 🛠️ Phần việc BẠN cần thao tác trên Unity Editor (Tuần 11):
+1. Trong `SampleScene.unity`, gắn `CombatVfxManager` lên `BattlefieldVisualizer` (hoặc kiểm tra tự động khởi tạo).
+2. Bấm **Play**, kiểm tra trận đấu ở tốc độ `1x` và `2x` (đặc biệt pha *Guardian* đỡ đòn và Boss chuyển Phase) để chắc chắn VFX rõ nét, không che mất thanh máu hay các nút HUD góc dưới.
+
+---
+
+### 📅 TUẦN 12 (Milestone 12): Bộ Phím tắt Demo Hội đồng (`F1–F7`), Rà soát QA Cuối & Đóng gói `.exe`
+**Mục tiêu:** Chốt toàn bộ kịch bản trình diễn bảo vệ đồ án bằng 1 phím bấm, vượt qua 100% bài kiểm thử tự động `QAAndBalanceAuditor` (`[TEST 1..4]`), đạt duyệt `/ux-review` lần cuối và xuất file `.exe` chạy độc lập.
 
 #### 🤖 Phần việc do AI Coding Agent thực hiện (Code C#):
 1. **Bộ Phím tắt Kịch bản Bảo vệ Đồ án (`DemoScenarioController` tích hợp trong `BattleSandboxController`):**
-   - Thiết lập dãy phím tắt nạp nhanh kịch bản chứng minh AI ngay lập tức:
+   - Thiết lập dãy phím tắt nạp nhanh kịch bản chứng minh AI ngay lập tức trên nền đồ họa & UI mới:
      - **`F1` — Kịch bản Chuẩn GDD Mục 53 (5v5 Classic):** Tái hiện chính xác pha `Enemy Assassin` lao vào `Ranger` $\rightarrow$ `Player SquadAI` bật `ProtectBackline` $\rightarrow$ `Guardian` nhảy ra chắn đòn, `Mage` Stun Assassin, `Medic` hồi máu.
      - **`F2` — Chứng minh Enemy AI Adaptation:** Nạp trận đấu đang ở chiến thuật `BacklineDive`, hạ gục Assassin địch để chứng minh `Enemy SquadAI` lập tức chuyển sang `DirectAssault` dồn sát thương vào `Guardian`.
      - **`F3` — Bật/Tắt Explainable AI Debugger:** Hiển thị bảng công thức chấm điểm `TargetScoreBreakdown` và `ActionScoreBreakdown` chi tiết từng con số.
      - **`F4` — Chứng minh Sức mạnh của Player AI Policy:** So sánh trực tiếp cùng 1 đội hình nhưng khi đổi Policy của `Ranger` và `Medic` thì chuyển từ thua sang thắng áp đảo.
-     - **`F5` — Kịch bản Boss 3 Pha (*The Warden*):** Đưa máu Boss xuống sát ngưỡng $65\%$ và $35\%$ để trình diễn trực tiếp hiệu ứng chuyển Phase (*Formation Breaker* & *Berserk Overdrive*).
+     - **`F5` — Kịch bản Boss 3 Pha (*The Warden*):** Đưa máu Boss xuống sát ngưỡng $65\%$ và $35\%$ để trình diễn trực tiếp hiệu ứng chuyển Phase (*Formation Breaker* & *Berserk Overdrive*), đồng thời nối thông node Boss `F4_L0` sang `Endless Mode`.
      - **`F6` — Kịch bản Nhiệm vụ `Elimination` & `Survival` + World Modifiers.**
      - **`F7` — Mở nhanh Headless AI Batch Simulator & QA Audit:** Chạy 100 trận đấu trong $\sim 0.6\text{ giây}$ và xuất báo cáo `[PASS]` toàn diện.
-2. **Chạy rà soát `QAAndBalanceAuditor.cs` lần cuối:**
-   - Kiểm tra toàn bộ bất biến trạng thái cho cả các tính năng mới (`Survival`, `Elimination`, `Endless Mode`), đảm bảo 0 lỗi biên dịch, 0 cảnh báo `NullReferenceException` và tốc độ giả lập giữ vững $< 10\text{ ms/trận}$.
+2. **Hoàn thiện & Chạy rà soát `QAAndBalanceAuditor.cs` (`[TEST 1..4]`):**
+   - Kiểm tra toàn bộ bất biến trạng thái cho cả các tính năng mới (`Survival`, `Elimination`, `Endless Mode`, `PlayerBehaviorProfile`), đảm bảo 0 lỗi biên dịch, 0 cảnh báo `NullReferenceException` và tốc độ giả lập giữ vững $< 10\text{ ms/trận}$.
+3. **Kiểm duyệt `/ux-review` lần cuối:** Xác nhận toàn bộ 7 kịch bản `F1–F7` hiển thị sắc nét, không lỗi layout trên uGUI Canvas.
 
-#### 🛠️ Phần việc BẠN cần thao tác trên Unity Editor (Tuần 9):
+#### 🛠️ Phần việc BẠN cần thao tác trên Unity Editor (Tuần 12):
 1. **Kiểm tra QA tự động trên Editor:**
-   - Bấm Play trong Unity, chuyển sang tab `[3] AI Batch Simulator` (hoặc bấm `F7`) $\rightarrow$ bấm **`[RUN FULL QA & BALANCE AUDIT]`** và chụp màn hình kết quả `[PASS]` đưa vào báo cáo quyển đồ án.
-2. **Đóng gói Bản dựng Windows PC (`.exe`):**
-   - Vào menu `File -> Build Settings...`
-   - Bấm **Add Open Scenes** để đưa `MainScene` vào danh sách build.
-   - Chọn Target Platform là **Windows, Mac, Linux** (Architecture: `Intel 64-bit` / `x86_64`).
+   - Bấm Play trong Unity, bấm `F7` (hoặc mở tab `AI Batch Simulator`) $\rightarrow$ chạy **`[RUN FULL QA & BALANCE AUDIT]`** và chụp màn hình kết quả `[PASS]` đưa vào báo cáo quyển đồ án.
+2. **Đóng gói Bản dựng Windows PC (`.exe`) trên Unity 6:**
+   - Vào menu `File -> Build Profiles` (hoặc `File -> Build Settings...` trên bản cũ).
+   - Chọn **Windows**, bấm **Add Open Scenes** để đảm bảo `Assets/Scenes/SampleScene.unity` nằm trong danh sách build (Architecture: `Intel 64-bit` / `x86_64`).
    - Bấm vào **Player Settings...**:
      - `Company Name`: `HUST_20225138`
      - `Product Name`: `The Crownless Warband`
      - `Fullscreen Mode`: `Fullscreen Window` (Độ phân giải mặc định `1920 x 1080`, bật `Resizable Window`).
-   - Quay lại cửa sổ Build Settings, bấm **Build**, chọn thư mục `D:\The_Crownless_Warband\Builds\TheCrownlessWarband.exe`.
+   - Bấm **Build**, chọn thư mục `D:\The_Crownless_Warband\Builds\TheCrownlessWarband.exe`.
 3. **Chạy thử bản `.exe` độc lập & Quay video dự phòng:**
-   - Mở trực tiếp file `TheCrownlessWarband.exe` ngoài màn hình Desktop, bấm thử lần lượt các phím `F1` $\rightarrow$ `F7` và `SPACE` để đảm bảo mọi hiệu ứng chạy mượt mà.
-   - Quay lại 1 video ngắn (3–5 phút) trình diễn các phím `F1`–`F7` để làm tư liệu dự phòng tuyệt đối an toàn khi lên bục bảo vệ đồ án.
+   - Mở trực tiếp file `TheCrownlessWarband.exe`, bấm thử lần lượt các phím `F1` $\rightarrow$ `F7` và `SPACE` để đảm bảo mọi hiệu ứng, âm thanh và VFX chạy mượt mà.
+   - Quay lại 1 video ngắn (3–5 phút) trình diễn bộ `F1–F7` làm tư liệu dự phòng an toàn khi bảo vệ đồ án.
 
 ---
 
@@ -274,18 +258,21 @@ Mục tiêu của 5 tuần cuối là chuyển hóa toàn bộ phần lõi Pure 
 
 | Phân loại GDD | Hạng mục chức năng | Trạng thái hiện tại | Tuần hoàn thiện |
 | :--- | :--- | :---: | :---: |
-| **Must Have** | Turn-based Battle (3 Phases) & Formation Grid ($3 \times 3$) | ✅ Hoàn thành (Core) | Tuần 1–2 (+Visual Tuần 5) |
+| **Must Have** | Turn-based Battle (3 Phases) & Formation Grid ($3 \times 3$) | ✅ Hoàn thành | Tuần 1–2 & Tuần 5 |
 | **Must Have** | 5 Class nhân vật, Basic Attack & Skills, Interception | ✅ Hoàn thành | Tuần 1–2 |
 | **Must Have** | Utility AI (`TargetEvaluator` + `ActionEvaluator`) | ✅ Hoàn thành | Tuần 2 |
 | **Must Have** | Squad AI (2 phe) & Mid-Battle Adaptation (Chống Thrashing) | ✅ Hoàn thành | Tuần 2 & Tuần 4 |
-| **Must Have** | Player-Configurable AI Policy & Skill Auto/Semi/Manual | ✅ Hoàn thành (Core) | Tuần 3 (+UI Tuần 7) |
-| **Must Have** | Campaign Map 5 tầng theo Seed, Reward (1 trong 3), 4 Relics | ✅ Hoàn thành | Tuần 3 |
+| **Must Have** | Player-Configurable AI Policy & Skill Auto/Semi/Manual | ✅ Hoàn thành | Tuần 3 & Tuần 7 |
+| **Must Have** | Campaign Map 5 tầng theo Seed, Reward (1 trong 3), 4 Relics & Shop | ✅ Hoàn thành | Tuần 3 & Tuần 7 |
 | **Must Have** | Save / Load JSON (`Newtonsoft.Json`) | ✅ Hoàn thành | Tuần 3 |
-| **Must Have** | Giao diện Sàn đấu 2D trực quan & Diễn hoạt `DOTween` | 🔄 Đang triển khai | **Tuần 5 – Tuần 6** |
-| **Should Have** | Explainable AI Debugger (`Phím F3`) & Combat Log chi tiết | ✅ Hoàn thành | Tuần 2 |
+| **Must Have** | Sàn đấu 2D trực quan & Diễn hoạt Procedural theo Sự kiện | ✅ Hoàn thành | Tuần 5–6 |
+| **Should Have** | Explainable AI Debugger (`Phím F3`) & Combat Log chi tiết | ✅ Hoàn thành | Tuần 2 & Tuần 6 |
 | **Should Have** | Boss Đa giai đoạn (*The Warden* — 3 Phases) | ✅ Hoàn thành | Tuần 4 |
 | **Should Have** | World Modifiers (4 loại) & Enemy Affixes (3 loại) | ✅ Hoàn thành | Tuần 4 |
-| **Should Have** | 3 Loại Nhiệm vụ (`Assault`, `Survival`, `Elimination`) & 3 Biomes | ⏳ Kế hoạch | **Tuần 7** |
-| **Could Have** | Headless AI Batch Simulator (100 trận) & QA Automated Auditor | ✅ Hoàn thành | Tuần 4 |
-| **Could Have** | Endless Mode, Player Behavior Profile & Adaptive Encounter | ⏳ Kế hoạch | **Tuần 8** |
-| **Could Have** | Âm thanh chiến đấu (SFX) & Phím tắt Demo Hội đồng (`F1–F7`) | ⏳ Kế hoạch | **Tuần 8 – Tuần 9** |
+| **Should Have** | 3 Loại Nhiệm vụ (`Assault`, `Survival`, `Elimination`) & 3 Biomes | ✅ Hoàn thành | Tuần 7 |
+| **Could Have** | Headless AI Batch Simulator (100 trận) & QA Automated Auditor | ✅ Hoàn thành | Tuần 4 *(Mở rộng `[TEST 4]` Tuần 12)* |
+| **Could Have** | Endless Mode, Player Behavior Profile, Turn Order Bar & Âm thanh (SFX) | ✅ Hoàn thành | Tuần 8 |
+| **UX/UI Overhaul** | Main Menu, Settings, Debug Mode (`F8/F3`) & HUD Chiến đấu kiểu RPG (`uGUI Canvas`) | ⏳ Kế hoạch | **Tuần 9** |
+| **Visual Polish** | Bản đồ Đường đi 2D (nhân vật bước trên đường) + Tạo hình Nhân vật & Sàn đấu 2D | ⏳ Kế hoạch | **Tuần 10** |
+| **Visual Polish** | Hiệu ứng Chiến đấu VFX Pooling, Damage Trail, Camera Shake & `/ux-review` | ⏳ Kế hoạch | **Tuần 11** |
+| **Could Have / Release** | Bộ Phím tắt Demo Hội đồng (`F1–F7`), QA Audit Cuối & Build `.exe` | ⏳ Kế hoạch | **Tuần 12** |

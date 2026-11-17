@@ -18,12 +18,15 @@ namespace CrownlessWarband.Presentation.BattleView
 
         public string UnitInstanceId { get; private set; }
         public bool IsVisibleOnBattlefield { get; set; } = true;
+        public bool SuppressOverheadGui { get; set; }
         public event Action<string> OnUnitClicked;
 
+        private SpriteRenderer _shadowRenderer;
         private SpriteRenderer _selectionRingRenderer;
         private SpriteRenderer _bodyRenderer;
 
         private SpriteRenderer _hpBgRenderer;
+        private SpriteRenderer _hpTrailRenderer;
         private SpriteRenderer _hpFillRenderer;
         private SpriteRenderer _shieldBgRenderer;
         private SpriteRenderer _shieldFillRenderer;
@@ -84,6 +87,12 @@ namespace CrownlessWarband.Presentation.BattleView
         private const float DeathFadeDuration = 0.35f;
         private UnitState _lastSyncedUnit;
 
+        private float _trailHpRatio = 1f;
+        private float _targetHpRatio = 1f;
+        private float _trailHoldTimer = 0f;
+        private const float TrailHoldDuration = 0.18f;
+        private const float TrailShrinkSpeed = 0.90f;
+
         // Cache dữ liệu hiển thị OnGUI để tránh cấp phát chuỗi mỗi frame
         private string _cachedLabelText = string.Empty;
         private string _cachedShadowText = string.Empty;
@@ -97,6 +106,7 @@ namespace CrownlessWarband.Presentation.BattleView
         private int _lastBossPhase = -1;
         private EnemyAffixType _lastAffix = EnemyAffixType.None;
         private string _lastName;
+        private bool _lastIsBoss;
 
         private static GUIStyle _overheadStyle;
         private static GUIStyle _overheadShadowStyle;
@@ -121,53 +131,63 @@ namespace CrownlessWarband.Presentation.BattleView
 
             if (!_isInitialized)
             {
+                _shadowRenderer = CreateChildRenderer("DropShadow", 0);
                 _selectionRingRenderer = CreateChildRenderer("SelectionRing", 1);
                 _bodyRenderer = CreateChildRenderer("BodySprite", 2);
 
                 _hpBgRenderer = CreateChildRenderer("HpBarBg", 4);
-                _hpFillRenderer = CreateChildRenderer("HpBarFill", 5);
+                _hpTrailRenderer = CreateChildRenderer("HpBarTrail", 5);
+                _hpFillRenderer = CreateChildRenderer("HpBarFill", 6);
 
                 _shieldBgRenderer = CreateChildRenderer("ShieldBarBg", 4);
-                _shieldFillRenderer = CreateChildRenderer("ShieldBarFill", 5);
+                _shieldFillRenderer = CreateChildRenderer("ShieldBarFill", 6);
 
                 _energyBgRenderer = CreateChildRenderer("EnergyBarBg", 4);
-                _energyFillRenderer = CreateChildRenderer("EnergyBarFill", 5);
+                _energyFillRenderer = CreateChildRenderer("EnergyBarFill", 6);
 
                 _isInitialized = true;
             }
 
             _usesCustomSprite = customRoleSprite != null;
-            _aliveBodyColor = _usesCustomSprite ? Color.white : ResolveRoleColor(unit.Role, unit.Team);
+            _aliveBodyColor = Color.white;
 
-            _selectionRingRenderer.sprite = defaultSquareSprite;
+            _shadowRenderer.sprite = ProceduralUnitArtFactory.GetDropShadowSprite();
+            _shadowRenderer.color = new Color(0f, 0f, 0f, 0.58f);
+            _shadowRenderer.transform.localPosition = new Vector3(0f, -0.45f * bossMultiplier, 0f);
+            _shadowRenderer.transform.localScale = new Vector3(0.92f * bossMultiplier, 0.34f * bossMultiplier, 1f);
+
+            _selectionRingRenderer.sprite = ProceduralUnitArtFactory.GetGroundRingSprite();
             _selectionRingRenderer.color = new Color(0.25f, 1.0f, 0.9f, 0.9f);
-            _selectionRingRenderer.transform.localPosition = Vector3.zero;
-            _baseRingScale = new Vector3(0.84f * bossMultiplier, 1.00f * bossMultiplier, 1f);
+            _selectionRingRenderer.transform.localPosition = new Vector3(0f, -0.43f * bossMultiplier, 0f);
+            _baseRingScale = new Vector3(1.16f * bossMultiplier, 0.48f * bossMultiplier, 1f);
             _selectionRingRenderer.transform.localScale = _baseRingScale;
             _selectionRingRenderer.enabled = false;
 
-            _bodyRenderer.sprite = _usesCustomSprite ? customRoleSprite : defaultSquareSprite;
+            Sprite bodySprite = _usesCustomSprite
+                ? customRoleSprite
+                : ProceduralUnitArtFactory.GetUnitSprite(unit.Role, unit.Team, _isBoss);
+            _bodyRenderer.sprite = bodySprite;
             _bodyRenderer.transform.localPosition = Vector3.zero;
-            if (_usesCustomSprite && customRoleSprite.bounds.size.x > 0.001f && customRoleSprite.bounds.size.y > 0.001f)
+            float targetSize = 1.04f * bossMultiplier;
+            if (bodySprite != null && bodySprite.bounds.size.x > 0.001f && bodySprite.bounds.size.y > 0.001f)
             {
-                float targetSize = 0.88f * bossMultiplier;
-                float maxDim = Mathf.Max(customRoleSprite.bounds.size.x, customRoleSprite.bounds.size.y);
+                float maxDim = Mathf.Max(bodySprite.bounds.size.x, bodySprite.bounds.size.y);
                 float uniformScale = targetSize / maxDim;
                 _baseBodyScale = new Vector3(uniformScale, uniformScale, 1f);
             }
             else
             {
-                _baseBodyScale = new Vector3(0.70f * bossMultiplier, 0.86f * bossMultiplier, 1f);
+                _baseBodyScale = new Vector3(targetSize, targetSize, 1f);
             }
             _bodyRenderer.transform.localScale = _baseBodyScale;
 
             // Sắp xếp vị trí 3 thanh chỉ số phía trên thân nhân vật
-            float topBodyEdge = 0.43f * bossMultiplier;
-            _energyBarY = topBodyEdge + 0.09f;
-            _shieldBarY = _energyBarY + 0.08f;
-            _hpBarY = _shieldBarY + 0.10f;
+            float topBodyEdge = 0.52f * bossMultiplier;
+            _energyBarY = topBodyEdge + 0.045f;
+            _shieldBarY = _energyBarY + 0.055f;
+            _hpBarY = _shieldBarY + 0.075f;
 
-            SetupBarSprites(defaultSquareSprite, unit.Team);
+            SetupBarSprites(ProceduralUnitArtFactory.GetRoundedBarSprite(), unit.Team);
 
             _hasInitialPosition = false;
             _isSelected = false;
@@ -198,6 +218,11 @@ namespace CrownlessWarband.Presentation.BattleView
             _displayBossPhase = unit.BossPhase;
             _isAlive = _displayHp > 0;
             _deathFadeTimer = 0f;
+
+            float ratio = Mathf.Clamp01((float)_displayHp / Mathf.Max(1, _displayMaxHp));
+            _targetHpRatio = ratio;
+            _trailHpRatio = ratio;
+            _trailHoldTimer = 0f;
         }
 
         public void ApplyVisualSkillUsed(int energyCost, int energyGain = 15)
@@ -311,11 +336,40 @@ namespace CrownlessWarband.Presentation.BattleView
             {
                 _isBoss = nowBoss;
                 float bossMultiplier = _isBoss ? 1.35f : 1.0f;
+
+                if (_shadowRenderer != null)
+                {
+                    _shadowRenderer.transform.localPosition = new Vector3(0f, -0.45f * bossMultiplier, 0f);
+                    _shadowRenderer.transform.localScale = new Vector3(0.92f * bossMultiplier, 0.34f * bossMultiplier, 1f);
+                }
+
+                _selectionRingRenderer.transform.localPosition = new Vector3(0f, -0.43f * bossMultiplier, 0f);
+                _baseRingScale = new Vector3(1.16f * bossMultiplier, 0.48f * bossMultiplier, 1f);
+
                 if (!_usesCustomSprite)
                 {
-                    _baseBodyScale = new Vector3(0.70f * bossMultiplier, 0.86f * bossMultiplier, 1f);
+                    Sprite bossSprite = ProceduralUnitArtFactory.GetUnitSprite(unit.Role, unit.Team, _isBoss);
+                    _bodyRenderer.sprite = bossSprite;
+                    float targetSize = 1.04f * bossMultiplier;
+                    if (bossSprite != null && bossSprite.bounds.size.x > 0.001f && bossSprite.bounds.size.y > 0.001f)
+                    {
+                        float maxDim = Mathf.Max(bossSprite.bounds.size.x, bossSprite.bounds.size.y);
+                        float uniformScale = targetSize / maxDim;
+                        _baseBodyScale = new Vector3(uniformScale, uniformScale, 1f);
+                    }
+                    else
+                    {
+                        _baseBodyScale = new Vector3(targetSize, targetSize, 1f);
+                    }
                 }
-                _baseRingScale = new Vector3(0.84f * bossMultiplier, 1.00f * bossMultiplier, 1f);
+
+                float topBodyEdge = 0.52f * bossMultiplier;
+                _energyBarY = topBodyEdge + 0.045f;
+                _shieldBarY = _energyBarY + 0.055f;
+                _hpBarY = _shieldBarY + 0.075f;
+                _energyBgRenderer.transform.localPosition = new Vector3(0f, _energyBarY, 0f);
+                _shieldBgRenderer.transform.localPosition = new Vector3(0f, _shieldBarY, 0f);
+                _hpBgRenderer.transform.localPosition = new Vector3(0f, _hpBarY, 0f);
             }
 
             if (!_hasInitialPosition || Vector3.Distance(_baseWorldPos, targetWorldPos) > 4.0f)
@@ -341,6 +395,22 @@ namespace CrownlessWarband.Presentation.BattleView
             float shieldRatio = Mathf.Clamp01((float)_displayShield / Mathf.Max(1, _displayMaxHp));
             float energyRatio = Mathf.Clamp01((float)_displayEnergy / Mathf.Max(1, _displayMaxEnergy));
 
+            if (hpRatio < _targetHpRatio)
+            {
+                _trailHpRatio = Mathf.Max(_trailHpRatio, _targetHpRatio);
+                _trailHoldTimer = TrailHoldDuration;
+            }
+            else if (hpRatio > _trailHpRatio)
+            {
+                _trailHpRatio = hpRatio;
+                _trailHoldTimer = 0f;
+            }
+            _targetHpRatio = hpRatio;
+
+            if (_hpTrailRenderer != null)
+            {
+                UpdateBarFill(_hpTrailRenderer, _hpBarY, HpBarHeight, _trailHpRatio);
+            }
             UpdateBarFill(_hpFillRenderer, _hpBarY, HpBarHeight, hpRatio);
             UpdateBarFill(_shieldFillRenderer, _shieldBarY, ShieldBarHeight, shieldRatio);
             UpdateBarFill(_energyFillRenderer, _energyBarY, EnergyBarHeight, energyRatio);
@@ -421,6 +491,22 @@ namespace CrownlessWarband.Presentation.BattleView
             if (_pulseTimer > 0f) _pulseTimer = Mathf.Max(0f, _pulseTimer - dt);
             if (_flashTimer > 0f) _flashTimer = Mathf.Max(0f, _flashTimer - dt);
             if (_deathFadeTimer > 0f) _deathFadeTimer = Mathf.Max(0f, _deathFadeTimer - dt);
+
+            if (_trailHpRatio > _targetHpRatio)
+            {
+                if (_trailHoldTimer > 0f)
+                {
+                    _trailHoldTimer -= dt;
+                }
+                else
+                {
+                    _trailHpRatio = Mathf.MoveTowards(_trailHpRatio, _targetHpRatio, dt * TrailShrinkSpeed);
+                    if (_hpTrailRenderer != null)
+                    {
+                        UpdateBarFill(_hpTrailRenderer, _hpBarY, HpBarHeight, _trailHpRatio);
+                    }
+                }
+            }
         }
 
         private void LateUpdate()
@@ -434,9 +520,11 @@ namespace CrownlessWarband.Presentation.BattleView
             bool isDeadAndFadedOut = !_isAlive && _deathFadeTimer <= 0f;
             if (isDeadAndFadedOut)
             {
+                if (_shadowRenderer != null) _shadowRenderer.enabled = false;
                 _bodyRenderer.enabled = false;
                 _selectionRingRenderer.enabled = false;
                 _hpBgRenderer.enabled = false;
+                if (_hpTrailRenderer != null) _hpTrailRenderer.enabled = false;
                 _hpFillRenderer.enabled = false;
                 _shieldBgRenderer.enabled = false;
                 _shieldFillRenderer.enabled = false;
@@ -446,6 +534,7 @@ namespace CrownlessWarband.Presentation.BattleView
                 return;
             }
 
+            if (_shadowRenderer != null) _shadowRenderer.enabled = true;
             _bodyRenderer.enabled = true;
             _hpBgRenderer.enabled = true;
             _shieldBgRenderer.enabled = true;
@@ -515,12 +604,18 @@ namespace CrownlessWarband.Presentation.BattleView
                 baseColor = Color.Lerp(baseColor, _flashColor, blend * 0.85f);
             }
 
+            float shadowAlpha = 0.58f;
             if (!_isAlive && _deathFadeTimer > 0f)
             {
                 float alpha = _deathFadeTimer / DeathFadeDuration;
                 baseColor.a *= alpha;
+                shadowAlpha *= alpha;
             }
             _bodyRenderer.color = baseColor;
+            if (_shadowRenderer != null)
+            {
+                _shadowRenderer.color = new Color(0f, 0f, 0f, shadowAlpha);
+            }
 
             // 6. Active Turn Ring (Vàng) vs Selection Ring (Cyan)
             if (_isActingUnit)
@@ -533,7 +628,10 @@ namespace CrownlessWarband.Presentation.BattleView
             else if (_isSelected)
             {
                 _selectionRingRenderer.enabled = true;
-                _selectionRingRenderer.color = new Color(0.25f, 1.0f, 0.9f, 0.90f);
+                bool isEnemy = _lastSyncedUnit != null && _lastSyncedUnit.Team == TeamSide.Enemy;
+                _selectionRingRenderer.color = isEnemy
+                    ? new Color(1.0f, 0.36f, 0.28f, 0.92f)
+                    : new Color(0.25f, 1.0f, 0.9f, 0.90f);
                 _selectionRingRenderer.transform.localScale = _baseRingScale;
             }
             else
@@ -550,22 +648,26 @@ namespace CrownlessWarband.Presentation.BattleView
 
         private void OnGUI()
         {
-            if (!IsVisibleOnBattlefield || (!_isAlive && _deathFadeTimer <= 0f) || string.IsNullOrEmpty(_cachedLabelText)) return;
+            if (!IsVisibleOnBattlefield || SuppressOverheadGui || (!_isAlive && _deathFadeTimer <= 0f) || string.IsNullOrEmpty(_cachedLabelText)) return;
 
             Camera cam = Camera.main;
             if (cam == null) return;
 
-            Vector3 worldAnchor = transform.position + Vector3.up * 0.85f;
+            Vector3 worldAnchor = transform.position + Vector3.up * (_hpBarY + 0.03f);
             Vector3 screenPos = cam.WorldToScreenPoint(worldAnchor);
             if (screenPos.z <= 0f) return;
 
             EnsureGuiStyles();
 
+            int targetFontSize = _isBoss ? 11 : 10;
+            _overheadStyle.fontSize = targetFontSize;
+            _overheadShadowStyle.fontSize = targetFontSize;
+
             float guiX = screenPos.x;
             float guiY = Screen.height - screenPos.y;
 
-            const float labelWidth = 176f;
-            const float labelHeight = 52f;
+            const float labelWidth = 172f;
+            float labelHeight = _isBoss ? 22f : 32f;
             Rect rect = new Rect(guiX - labelWidth * 0.5f, guiY - labelHeight, labelWidth, labelHeight);
             Rect shadowRect = new Rect(rect.x + 1f, rect.y + 1f, rect.width, rect.height);
 
@@ -590,6 +692,12 @@ namespace CrownlessWarband.Presentation.BattleView
             _hpBgRenderer.color = new Color(0.08f, 0.08f, 0.10f, 0.90f);
             _hpBgRenderer.transform.localPosition = new Vector3(0f, _hpBarY, 0f);
             _hpBgRenderer.transform.localScale = new Vector3(BarWidth + 0.04f, HpBarHeight + 0.03f, 1f);
+
+            if (_hpTrailRenderer != null)
+            {
+                _hpTrailRenderer.sprite = squareSprite;
+                _hpTrailRenderer.color = new Color(1.0f, 0.82f, 0.38f, 0.92f);
+            }
 
             _hpFillRenderer.sprite = squareSprite;
             _hpFillRenderer.color = team == TeamSide.Player
@@ -637,7 +745,8 @@ namespace CrownlessWarband.Presentation.BattleView
                 _lastVip == _displayVip &&
                 _lastBossPhase == _displayBossPhase &&
                 _lastAffix == unit.Affix &&
-                _lastName == unit.Name)
+                _lastName == unit.Name &&
+                _lastIsBoss == _isBoss)
             {
                 return;
             }
@@ -652,53 +761,59 @@ namespace CrownlessWarband.Presentation.BattleView
             _lastBossPhase = _displayBossPhase;
             _lastAffix = unit.Affix;
             _lastName = unit.Name;
+            _lastIsBoss = _isBoss;
 
             _labelSb.Length = 0;
 
-            // Dòng 1: Tên + Tag Role
-            string roleTag = GetRoleShortTag(unit.Role);
-            if (!_isAlive)
+            if (_isBoss)
             {
-                _labelSb.Append("<color=#888888>").Append(unit.Name).Append(' ').Append(roleTag).Append("</color>\n");
-            }
-            else if (unit.Team == TeamSide.Player)
-            {
-                _labelSb.Append("<color=#B8F2FF><b>").Append(unit.Name).Append(' ').Append(roleTag).Append("</b></color>\n");
-            }
-            else
-            {
-                _labelSb.Append("<color=#FFB8B8><b>").Append(unit.Name).Append(' ').Append(roleTag).Append("</b></color>\n");
-            }
-
-            // Dòng 2: HP & Shield
-            if (!_isAlive)
-            {
-                _labelSb.Append("<color=#888888>DEAD</color>");
-            }
-            else
-            {
-                _labelSb.Append(_displayHp).Append('/').Append(_displayMaxHp);
-                if (_displayShield > 0)
+                // Boss: 1 dòng súc tích (Top-Center Boss Bar đã hiển thị Phase/HP chi tiết)
+                if (!_isAlive)
                 {
-                    _labelSb.Append(" <color=#66E0FF>(+").Append(_displayShield).Append(")</color>");
+                    _labelSb.Append("<color=#888888>★ ").Append(unit.Name).Append(" (DEAD)</color>");
+                }
+                else
+                {
+                    _labelSb.Append("<color=#FFB8B8><b>★ ").Append(unit.Name)
+                            .Append(" (").Append(_displayHp).Append('/').Append(_displayMaxHp).Append(")</b></color>");
+                }
+            }
+            else
+            {
+                // Đơn vị thường: Dòng 1 Tên + Máu (gọn 1 dòng), Dòng 2 chỉ hiện huy hiệu khi có trạng thái/Affix
+                string colorHex = !_isAlive
+                    ? "#888888"
+                    : (unit.Team == TeamSide.Player ? "#B8F2FF" : "#FFB8B8");
+
+                _labelSb.Append("<color=").Append(colorHex).Append(">");
+                if (_isAlive) _labelSb.Append("<b>");
+                _labelSb.Append(unit.Name);
+                if (!_isAlive)
+                {
+                    _labelSb.Append(" (DEAD)");
+                }
+                else
+                {
+                    _labelSb.Append(" (").Append(_displayHp).Append('/').Append(_displayMaxHp).Append(')');
+                }
+                if (_isAlive) _labelSb.Append("</b>");
+                _labelSb.Append("</color>");
+
+                bool hasAnyBadge = _displayVip || _displayStun || _displayMark || _displayProt || unit.Affix != EnemyAffixType.None;
+                if (hasAnyBadge)
+                {
+                    _labelSb.Append("\n<size=9>");
+                    if (_displayVip) _labelSb.Append("<color=#FFD700>[VIP]</color> ");
+                    if (_displayStun) _labelSb.Append("<color=yellow>[STUN]</color> ");
+                    if (_displayMark) _labelSb.Append("<color=red>[MARK]</color> ");
+                    if (_displayProt) _labelSb.Append("<color=lime>[PROT]</color> ");
+                    if (unit.Affix != EnemyAffixType.None) _labelSb.Append("<color=magenta>[").Append(unit.Affix).Append("]</color>");
+                    _labelSb.Append("</size>");
                 }
             }
 
-            // Dòng 3: Huy hiệu trạng thái nổi bật
-            bool hasAnyBadge = _displayVip || _displayStun || _displayMark || _displayProt || _displayBossPhase > 0 || unit.Affix != EnemyAffixType.None;
-            if (hasAnyBadge)
-            {
-                _labelSb.Append('\n');
-                if (_displayVip) _labelSb.Append("<color=#FFD700>[VIP]</color> ");
-                if (_displayStun) _labelSb.Append("<color=yellow>[STUN]</color> ");
-                if (_displayMark) _labelSb.Append("<color=red>[MARK]</color> ");
-                if (_displayProt) _labelSb.Append("<color=lime>[PROT]</color> ");
-                if (_displayBossPhase > 0) _labelSb.Append("<color=orange>[PHASE ").Append(_displayBossPhase).Append("]</color> ");
-                if (unit.Affix != EnemyAffixType.None) _labelSb.Append("<color=magenta>[").Append(unit.Affix).Append("]</color>");
-            }
-
             _cachedLabelText = _labelSb.ToString().TrimEnd();
-            _cachedShadowText = StripRichTextTags(_cachedLabelText);
+            _cachedShadowText = StripColorTagsPreserveFormatting(_cachedLabelText);
         }
 
         private static string GetRoleShortTag(UnitRole role)
@@ -712,34 +827,6 @@ namespace CrownlessWarband.Presentation.BattleView
                 case UnitRole.Medic: return "[Md]";
                 default: return "[?]";
             }
-        }
-
-        private static Color ResolveRoleColor(UnitRole role, TeamSide team)
-        {
-            if (team == TeamSide.Player)
-            {
-                switch (role)
-                {
-                    case UnitRole.Guardian: return new Color(0.20f, 0.75f, 0.95f, 1f);
-                    case UnitRole.Vanguard: return new Color(0.20f, 0.85f, 0.55f, 1f);
-                    case UnitRole.Ranger: return new Color(0.65f, 0.90f, 0.25f, 1f);
-                    case UnitRole.Mage: return new Color(0.60f, 0.40f, 0.95f, 1f);
-                    case UnitRole.Medic: return new Color(0.35f, 0.95f, 0.65f, 1f);
-                }
-            }
-            else
-            {
-                switch (role)
-                {
-                    case UnitRole.Guardian: return new Color(0.75f, 0.25f, 0.25f, 1f);
-                    case UnitRole.Vanguard: return new Color(0.90f, 0.35f, 0.20f, 1f);
-                    case UnitRole.Ranger: return new Color(0.85f, 0.20f, 0.55f, 1f);
-                    case UnitRole.Mage: return new Color(0.75f, 0.20f, 0.85f, 1f);
-                    case UnitRole.Medic: return new Color(0.90f, 0.45f, 0.55f, 1f);
-                }
-            }
-
-            return Color.white;
         }
 
         private static void EnsureGuiStyles()
@@ -758,34 +845,48 @@ namespace CrownlessWarband.Presentation.BattleView
 
             _overheadShadowStyle = new GUIStyle(_overheadStyle)
             {
-                richText = false,
+                richText = true,
                 normal = { textColor = new Color(0f, 0f, 0f, 0.85f) }
             };
         }
 
-        private static string StripRichTextTags(string input)
+        private static string StripColorTagsPreserveFormatting(string input)
         {
             if (string.IsNullOrEmpty(input)) return string.Empty;
 
             _stripSb.Length = 0;
-            bool insideTag = false;
             for (int i = 0; i < input.Length; i++)
             {
                 char c = input[i];
-                if (c == '<')
+                if (c == '<' && i + 7 < input.Length)
                 {
-                    insideTag = true;
-                    continue;
+                    bool isColorOpen =
+                        (input[i + 1] == 'c' || input[i + 1] == 'C') &&
+                        (input[i + 2] == 'o' || input[i + 2] == 'O') &&
+                        (input[i + 3] == 'l' || input[i + 3] == 'L') &&
+                        (input[i + 4] == 'o' || input[i + 4] == 'O') &&
+                        (input[i + 5] == 'r' || input[i + 5] == 'R') &&
+                        input[i + 6] == '=';
+
+                    bool isColorClose =
+                        input[i + 1] == '/' &&
+                        (input[i + 2] == 'c' || input[i + 2] == 'C') &&
+                        (input[i + 3] == 'o' || input[i + 3] == 'O') &&
+                        (input[i + 4] == 'l' || input[i + 4] == 'L') &&
+                        (input[i + 5] == 'o' || input[i + 5] == 'O') &&
+                        (input[i + 6] == 'r' || input[i + 6] == 'R') &&
+                        input[i + 7] == '>';
+
+                    if (isColorOpen || isColorClose)
+                    {
+                        while (i < input.Length && input[i] != '>')
+                        {
+                            i++;
+                        }
+                        continue;
+                    }
                 }
-                if (c == '>')
-                {
-                    insideTag = false;
-                    continue;
-                }
-                if (!insideTag)
-                {
-                    _stripSb.Append(c);
-                }
+                _stripSb.Append(c);
             }
             return _stripSb.ToString();
         }

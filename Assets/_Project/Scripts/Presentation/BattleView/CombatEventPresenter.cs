@@ -26,6 +26,7 @@ namespace CrownlessWarband.Presentation.BattleView
         [SerializeField] private BattlefieldGridView gridView;
         [SerializeField] private FloatingTextView floatingTextView;
         [SerializeField] private BattleAudioManager audioManager;
+        [SerializeField] private CombatVfxManager vfxManager;
 
         public PlaybackSpeedMode SpeedMode { get; set; } = PlaybackSpeedMode.Speed1x;
         public bool IsPaused { get; set; } = false;
@@ -38,6 +39,10 @@ namespace CrownlessWarband.Presentation.BattleView
         private BattleState _lastObservedState;
         private float _stepWaitTimer;
         private bool _wasInActiveBattle = true;
+        private float _camShakeTimer;
+        private float _camShakeDuration;
+        private float _camShakeMagnitude;
+        private static readonly Vector3 DefaultCameraPos = new Vector3(0f, 0f, -10f);
 
         private void Awake()
         {
@@ -47,7 +52,11 @@ namespace CrownlessWarband.Presentation.BattleView
         private void Update()
         {
             EnsureReferences();
-            if (sandboxController == null || sandboxController.CurrentState == null) return;
+            if (sandboxController == null || sandboxController.CurrentState == null)
+            {
+                ResetCameraShake();
+                return;
+            }
 
             BattleState currentState = sandboxController.CurrentState;
 
@@ -63,6 +72,8 @@ namespace CrownlessWarband.Presentation.BattleView
                 {
                     floatingTextView.ClearAll();
                 }
+                vfxManager?.ClearAll();
+                ResetCameraShake();
 
                 DrainInitialPlanningBootEvents(currentState);
                 return;
@@ -79,6 +90,8 @@ namespace CrownlessWarband.Presentation.BattleView
                     {
                         floatingTextView.ClearAll();
                     }
+                    vfxManager?.ClearAll();
+                    ResetCameraShake();
                 }
                 return;
             }
@@ -90,10 +103,17 @@ namespace CrownlessWarband.Presentation.BattleView
                 {
                     SkipAllPendingEvents();
                 }
+                ResetCameraShake();
                 return;
             }
 
-            if (IsPaused) return;
+            if (IsPaused)
+            {
+                ResetCameraShake();
+                return;
+            }
+
+            UpdateCameraShake(Time.deltaTime);
 
             if (_stepWaitTimer > 0f)
             {
@@ -110,6 +130,54 @@ namespace CrownlessWarband.Presentation.BattleView
             else if (!string.IsNullOrEmpty(CurrentActingUnitId))
             {
                 SetActingUnitHighlight(null);
+            }
+        }
+
+        public void TriggerCameraShake(float duration, float magnitude)
+        {
+            float clampedMag = Mathf.Clamp(magnitude, 0f, 0.11f);
+            if (clampedMag <= 0f) return;
+
+            if (clampedMag >= _camShakeMagnitude || _camShakeTimer <= 0f)
+            {
+                _camShakeDuration = Mathf.Max(0.05f, duration);
+                _camShakeTimer = _camShakeDuration;
+                _camShakeMagnitude = clampedMag;
+            }
+        }
+
+        private void UpdateCameraShake(float dt)
+        {
+            if (_camShakeTimer <= 0f) return;
+
+            _camShakeTimer -= dt;
+            Camera cam = Camera.main;
+            if (cam == null) return;
+
+            if (_camShakeTimer <= 0f)
+            {
+                _camShakeTimer = 0f;
+                _camShakeMagnitude = 0f;
+                cam.transform.position = DefaultCameraPos;
+                return;
+            }
+
+            float damp = _camShakeDuration > 0.0001f ? (_camShakeTimer / _camShakeDuration) : 0f;
+            float offsetX = Mathf.Sin(Time.unscaledTime * 68f) * _camShakeMagnitude * damp;
+            float offsetY = Mathf.Cos(Time.unscaledTime * 54f) * _camShakeMagnitude * 0.7f * damp;
+            cam.transform.position = DefaultCameraPos + new Vector3(offsetX, offsetY, 0f);
+        }
+
+        private void ResetCameraShake()
+        {
+            if (_camShakeTimer <= 0f && _camShakeMagnitude <= 0f) return;
+
+            _camShakeTimer = 0f;
+            _camShakeMagnitude = 0f;
+            Camera cam = Camera.main;
+            if (cam != null)
+            {
+                cam.transform.position = DefaultCameraPos;
             }
         }
 
@@ -162,11 +230,15 @@ namespace CrownlessWarband.Presentation.BattleView
 
             _stepWaitTimer = 0f;
             SetActingUnitHighlight(null);
+            vfxManager?.ClearAll();
+            ResetCameraShake();
         }
 
         private float PresentNextEvent(CombatEvent evt, BattleState state)
         {
             if (evt == null) return 0f;
+
+            float speedMult = GetSpeedMultiplier();
 
             LastPresentedEventSummary = !string.IsNullOrEmpty(evt.Description)
                 ? evt.Description
@@ -244,23 +316,55 @@ namespace CrownlessWarband.Presentation.BattleView
                         if (sourceUnit != null && targetUnit != null && sourceUnit.Team != targetUnit.Team && targetView != null)
                         {
                             sourceView.PlayAttackLunge(targetView.transform.position);
+
+                            if (sourceUnit.Role == UnitRole.Ranger ||
+                                sourceUnit.Role == UnitRole.Mage ||
+                                sourceUnit.Role == UnitRole.Medic)
+                            {
+                                Color projColor;
+                                if (sourceUnit.Role == UnitRole.Ranger)
+                                {
+                                    projColor = new Color(1.0f, 0.80f, 0.20f, 1f); // #FFCC33
+                                }
+                                else if (sourceUnit.Role == UnitRole.Mage)
+                                {
+                                    projColor = new Color(0.702f, 0.40f, 1.0f, 1f); // #B366FF
+                                }
+                                else
+                                {
+                                    projColor = new Color(0.302f, 0.949f, 0.651f, 1f); // #4DF2A6
+                                }
+                                vfxManager?.SpawnProjectile(sourceView.transform.position, targetView.transform.position, projColor, speedMult);
+                            }
+                            else
+                            {
+                                Color slashColor = sourceUnit.Team == TeamSide.Player
+                                    ? new Color(0.40f, 0.902f, 1.0f, 1f)  // #66E6FF
+                                    : new Color(1.0f, 0.40f, 0.251f, 1f); // #FF6640
+                                vfxManager?.SpawnSlashArc(sourceView.transform.position, targetView.transform.position, slashColor, speedMult);
+                            }
+
+                            if (IsHeavyAoESkill(evt.SkillName))
+                            {
+                                vfxManager?.SpawnShockwave(targetView.transform.position, new Color(1f, 0.55f, 0.20f, 1f), 2.5f, 0.40f, speedMult);
+                                TriggerCameraShake(0.22f, 0.08f);
+                            }
                         }
                         else
                         {
                             sourceView.PlayPulseEffect(Color.cyan);
                         }
 
-                        if (floatingTextView != null && !string.IsNullOrEmpty(evt.SkillName))
-                        {
-                            floatingTextView.SpawnFloatingText(
-                                sourceView.transform.position + Vector3.up * 0.70f,
-                                evt.SkillName,
-                                new Color(1.0f, 0.92f, 0.28f, 1f),
-                                duration: 1.05f,
-                                fontSize: 14,
-                                riseSpeed: 0.70f
-                            );
-                        }
+                        SpawnOutwardFloatingText(
+                            sourceView,
+                            evt.SkillName,
+                            new Color(1.0f, 0.92f, 0.28f, 1f),
+                            yOffset: 0.16f,
+                            sideOffset: 0f,
+                            duration: 0.85f,
+                            fontSize: 13,
+                            riseSpeed: 0.28f
+                        );
                     }
                     return 0.42f;
                 }
@@ -277,17 +381,19 @@ namespace CrownlessWarband.Presentation.BattleView
                             guardianView.PlayInterceptSlide(allyView.transform.position);
                         }
 
-                        if (floatingTextView != null)
-                        {
-                            floatingTextView.SpawnFloatingText(
-                                guardianView.transform.position + Vector3.up * 0.65f,
-                                "INTERCEPT!",
-                                new Color(0.30f, 1.0f, 0.80f, 1f),
-                                duration: 1.15f,
-                                fontSize: 15,
-                                riseSpeed: 0.85f
-                            );
-                        }
+                        vfxManager?.SpawnShieldDome(guardianView.transform.position, true, speedMult);
+                        TriggerCameraShake(0.14f, 0.05f);
+
+                        SpawnOutwardFloatingText(
+                            guardianView,
+                            "INTERCEPT!",
+                            new Color(0.30f, 1.0f, 0.80f, 1f),
+                            yOffset: 0.24f,
+                            sideOffset: 0f,
+                            duration: 0.95f,
+                            fontSize: 15,
+                            riseSpeed: 0.34f
+                        );
                     }
                     return 0.48f;
                 }
@@ -301,18 +407,28 @@ namespace CrownlessWarband.Presentation.BattleView
                         {
                             targetView.ApplyVisualDamage(evt.Value);
                             targetView.PlayHitShake();
-                            if (floatingTextView != null)
+
+                            bool heavyHit = evt.Value >= 40;
+                            Color sparkColor = heavyHit
+                                ? new Color(1f, 0.45f, 0.15f, 1f)
+                                : new Color(1f, 0.85f, 0.45f, 1f);
+                            vfxManager?.SpawnHitSpark(targetView.transform.position, sparkColor, heavyHit, speedMult);
+                            if (heavyHit)
                             {
-                                int fontSize = (evt.SkillName != null && evt.Value >= 45) ? 16 : 14;
-                                floatingTextView.SpawnFloatingText(
-                                    targetView.transform.position + Vector3.up * 0.55f,
-                                    $"-{evt.Value}",
-                                    new Color(1.0f, 0.32f, 0.25f, 1f),
-                                    duration: 1.15f,
-                                    fontSize: fontSize,
-                                    riseSpeed: 0.90f
-                                );
+                                TriggerCameraShake(0.16f, 0.06f);
                             }
+
+                            int fontSize = (evt.SkillName != null && evt.Value >= 45) ? 16 : 14;
+                            SpawnOutwardFloatingText(
+                                targetView,
+                                $"-{evt.Value}",
+                                new Color(1.0f, 0.32f, 0.25f, 1f),
+                                yOffset: 0.14f,
+                                sideOffset: 0.26f,
+                                duration: 0.92f,
+                                fontSize: fontSize,
+                                riseSpeed: 0.42f
+                            );
                         }
                     }
                     else
@@ -330,6 +446,7 @@ namespace CrownlessWarband.Presentation.BattleView
                                 }
                             }
                         }
+                        vfxManager?.SpawnShockwave(Vector3.zero, new Color(0.65f, 0.95f, 0.25f, 0.85f), 3.6f, 0.42f, speedMult);
                         if (floatingTextView != null)
                         {
                             floatingTextView.SpawnTacticalBanner("ACID RAIN (-5% HP)", new Color(0.68f, 0.95f, 0.25f, 1f), 1.6f);
@@ -345,17 +462,17 @@ namespace CrownlessWarband.Presentation.BattleView
                     {
                         targetView.ApplyVisualHeal(evt.Value);
                         targetView.PlayPulseEffect(Color.green);
-                        if (floatingTextView != null)
-                        {
-                            floatingTextView.SpawnFloatingText(
-                                targetView.transform.position + Vector3.up * 0.55f,
-                                $"+{evt.Value} HP",
-                                new Color(0.30f, 1.0f, 0.45f, 1f),
-                                duration: 1.15f,
-                                fontSize: 14,
-                                riseSpeed: 0.85f
-                            );
-                        }
+                        vfxManager?.SpawnHealSparkle(targetView.transform.position, speedMult);
+                        SpawnOutwardFloatingText(
+                            targetView,
+                            $"+{evt.Value} HP",
+                            new Color(0.30f, 1.0f, 0.45f, 1f),
+                            yOffset: 0.14f,
+                            sideOffset: 0.26f,
+                            duration: 0.92f,
+                            fontSize: 14,
+                            riseSpeed: 0.40f
+                        );
                     }
                     return 0.30f;
                 }
@@ -367,17 +484,17 @@ namespace CrownlessWarband.Presentation.BattleView
                     {
                         targetView.ApplyVisualShield(evt.Value);
                         targetView.PlayPulseEffect(Color.cyan);
-                        if (floatingTextView != null)
-                        {
-                            floatingTextView.SpawnFloatingText(
-                                targetView.transform.position + Vector3.up * 0.55f,
-                                $"+{evt.Value} SHD",
-                                new Color(0.35f, 0.90f, 1.0f, 1f),
-                                duration: 1.15f,
-                                fontSize: 14,
-                                riseSpeed: 0.85f
-                            );
-                        }
+                        vfxManager?.SpawnShieldDome(targetView.transform.position, false, speedMult);
+                        SpawnOutwardFloatingText(
+                            targetView,
+                            $"+{evt.Value} SHD",
+                            new Color(0.35f, 0.90f, 1.0f, 1f),
+                            yOffset: 0.14f,
+                            sideOffset: 0.26f,
+                            duration: 0.92f,
+                            fontSize: 14,
+                            riseSpeed: 0.40f
+                        );
                     }
                     return 0.30f;
                 }
@@ -393,17 +510,27 @@ namespace CrownlessWarband.Presentation.BattleView
                     {
                         unitView.ApplyVisualStatus(evt.Description);
                         unitView.PlayPulseEffect(badgeColor);
-                        if (floatingTextView != null && !string.IsNullOrEmpty(badgeText))
+
+                        if (badgeText == "PHASE 2!" || badgeText == "PHASE 3!")
                         {
-                            floatingTextView.SpawnFloatingText(
-                                unitView.transform.position + Vector3.up * 0.65f,
-                                badgeText,
-                                badgeColor,
-                                duration: 1.20f,
-                                fontSize: 14,
-                                riseSpeed: 0.80f
-                            );
+                            vfxManager?.SpawnBossPhaseBurst(unitView.transform.position, badgeText == "PHASE 3!" ? 3 : 2, speedMult);
+                            TriggerCameraShake(0.28f, 0.10f);
                         }
+                        else
+                        {
+                            vfxManager?.SpawnShockwave(unitView.transform.position, badgeColor, 1.45f, 0.30f, speedMult);
+                        }
+
+                        SpawnOutwardFloatingText(
+                            unitView,
+                            badgeText,
+                            badgeColor,
+                            yOffset: 0.22f,
+                            sideOffset: 0f,
+                            duration: 0.95f,
+                            fontSize: 14,
+                            riseSpeed: 0.34f
+                        );
                     }
                     return 0.32f;
                 }
@@ -416,17 +543,18 @@ namespace CrownlessWarband.Presentation.BattleView
                     {
                         deadView.ApplyVisualDeath();
                         deadView.PlayHitShake(0.40f, 0.22f);
-                        if (floatingTextView != null)
-                        {
-                            floatingTextView.SpawnFloatingText(
-                                deadView.transform.position + Vector3.up * 0.65f,
-                                "DEFEATED!",
-                                new Color(0.95f, 0.18f, 0.25f, 1f),
-                                duration: 1.35f,
-                                fontSize: 16,
-                                riseSpeed: 0.75f
-                            );
-                        }
+                        vfxManager?.SpawnShockwave(deadView.transform.position, new Color(0.95f, 0.22f, 0.25f, 1f), 1.75f, 0.36f, speedMult);
+                        TriggerCameraShake(0.20f, 0.07f);
+                        SpawnOutwardFloatingText(
+                            deadView,
+                            "DEFEATED!",
+                            new Color(0.95f, 0.18f, 0.25f, 1f),
+                            yOffset: 0.22f,
+                            sideOffset: 0f,
+                            duration: 1.10f,
+                            fontSize: 16,
+                            riseSpeed: 0.32f
+                        );
                     }
                     return 0.40f;
                 }
@@ -495,6 +623,11 @@ namespace CrownlessWarband.Presentation.BattleView
             }
         }
 
+        private void OnDestroy()
+        {
+            ResetCameraShake();
+        }
+
         private void EnsureReferences()
         {
             if (sandboxController == null)
@@ -524,6 +657,42 @@ namespace CrownlessWarband.Presentation.BattleView
                     audioManager = gameObject.AddComponent<BattleAudioManager>();
                 }
             }
+
+            if (vfxManager == null)
+            {
+                vfxManager = FindFirstObjectByType<CombatVfxManager>();
+                if (vfxManager == null)
+                {
+                    vfxManager = gameObject.AddComponent<CombatVfxManager>();
+                }
+            }
+        }
+
+        private void SpawnOutwardFloatingText(
+            UnitVisualView view,
+            string text,
+            Color color,
+            float yOffset,
+            float sideOffset,
+            float duration,
+            int fontSize,
+            float riseSpeed)
+        {
+            if (floatingTextView == null || view == null || string.IsNullOrEmpty(text)) return;
+
+            float sideSign = sideOffset > 0f ? (view.transform.position.x >= 0f ? sideOffset : -sideOffset) : 0f;
+            Vector3 spawnPos = view.transform.position + new Vector3(sideSign, yOffset, 0f);
+            floatingTextView.SpawnFloatingText(spawnPos, text, color, duration, fontSize, riseSpeed);
+        }
+
+        private static bool IsHeavyAoESkill(string skillName)
+        {
+            if (string.IsNullOrEmpty(skillName)) return false;
+            return skillName.IndexOf("Sweep", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                   skillName.IndexOf("Tempest", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                   skillName.IndexOf("Meteor", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                   skillName.IndexOf("Breaker", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                   skillName.IndexOf("Overdrive", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         private static UnitState FindUnitById(BattleState state, string instanceId)

@@ -152,6 +152,32 @@ namespace CrownlessWarband.Core.AI
             }
 
             // =================================================================
+            // [TEST 4] Week 7-8 Systems: Missions, Endless Mode & Adaptive AI
+            // =================================================================
+            sb.AppendLine("[TEST 4] Week 7-8 Systems (Missions, Endless Mode & Adaptive AI):");
+            try
+            {
+                bool eliminationPassed = VerifyEliminationMissionAndVipAI();
+                bool survivalPassed = VerifySurvivalMissionAndDefensiveAI();
+                bool endlessPassed = VerifyInfiniteEndlessProgression(seed);
+                bool adaptivePassed = VerifyPlayerBehaviorAndAdaptiveCounter();
+
+                sb.AppendLine($"  - Mission [Elimination] VIP AI & Instant Win: {(eliminationPassed ? "[PASS]" : "[WARN]")}");
+                sb.AppendLine($"  - Mission [Survival] 5-Turn Holdout & Early Defense AI: {(survivalPassed ? "[PASS]" : "[WARN]")}");
+                sb.AppendLine($"  - Endless Mode Auto-Generation (Floor 4 -> Floor 8+): {(endlessPassed ? "[PASS]" : "[WARN]")}");
+                sb.AppendLine($"  - PlayerBehaviorProfile & Adaptive Counter-Strategy: {(adaptivePassed ? "[PASS]" : "[WARN]")}");
+
+                bool test4Passed = eliminationPassed && survivalPassed && endlessPassed && adaptivePassed;
+                if (!test4Passed) allPassed = false;
+                sb.AppendLine($"  => Test 4 Subtotal: {(test4Passed ? "[PASS]" : "[WARN]")}\n");
+            }
+            catch (Exception ex)
+            {
+                sb.AppendLine($"  [ERROR in Test 4] {ex.Message}\n");
+                allPassed = false;
+            }
+
+            // =================================================================
             // SUMMARY
             // =================================================================
             sw.Stop();
@@ -234,6 +260,13 @@ namespace CrownlessWarband.Core.AI
             originalRun.CollectedRelics.Add(RelicType.BloodContract);
             originalRun.CurrentFloor = 2;
             originalRun.CorruptionLevel = 30;
+            originalRun.EndlessFloorDepth = 2;
+            if (originalRun.BehaviorProfile == null)
+            {
+                originalRun.BehaviorProfile = new PlayerBehaviorProfile();
+            }
+            originalRun.BehaviorProfile.TotalBattlesRecorded = 3;
+            originalRun.BehaviorProfile.RangedSkillEvents = 12;
 
             if (originalRun.PlayerRoster.Count > 0)
             {
@@ -253,6 +286,10 @@ namespace CrownlessWarband.Core.AI
             bool corruptionMatch = restoredRun.CorruptionLevel == originalRun.CorruptionLevel;
             bool rosterCountMatch = restoredRun.PlayerRoster.Count == originalRun.PlayerRoster.Count;
             bool relicsMatch = restoredRun.HasRelic(RelicType.TacticalCore) && restoredRun.HasRelic(RelicType.BloodContract);
+            bool endlessMatch = restoredRun.EndlessFloorDepth == originalRun.EndlessFloorDepth;
+            bool profileMatch = restoredRun.BehaviorProfile != null &&
+                                restoredRun.BehaviorProfile.TotalBattlesRecorded == 3 &&
+                                restoredRun.BehaviorProfile.RangedSkillEvents == 12;
 
             bool policyMatch = false;
             if (restoredRun.PlayerRoster.Count > 0 && restoredRun.PlayerRoster[0].AIPolicy != null)
@@ -263,7 +300,7 @@ namespace CrownlessWarband.Core.AI
                               p.SpecialSkillCondition == SkillConditionType.TargetHpBelow40;
             }
 
-            return seedMatch && floorMatch && corruptionMatch && rosterCountMatch && relicsMatch && policyMatch;
+            return seedMatch && floorMatch && corruptionMatch && rosterCountMatch && relicsMatch && policyMatch && endlessMatch && profileMatch;
         }
 
         private static bool SimulateFullCampaignRun(int seed)
@@ -409,6 +446,155 @@ namespace CrownlessWarband.Core.AI
             battle.Units.Add(dummyEnemy);
 
             return battle;
+        }
+
+        private static bool VerifyEliminationMissionAndVipAI()
+        {
+            var state = new BattleState
+            {
+                CurrentTurn = 1,
+                CurrentPhase = TurnPhase.Planning
+            };
+
+            var ranger = new UnitState("p_r_test", "Test Ranger", TeamSide.Player, UnitRole.Ranger,
+                new FormationPosition(RowType.Back, 0), 160, 50, 8, 16);
+            var quickShot = new SkillInstance("t_r_basic", "Quick Shot", SkillSlotType.BasicAttack,
+                SkillControlMode.Auto, SkillTargetType.SingleEnemy, SkillEffectType.Damage, 0, 0, 1.0f, canTargetBackline: true);
+            ranger.Skills.Add(quickShot);
+
+            var guard = new UnitState("e_front_guard", "Front Guard", TeamSide.Enemy, UnitRole.Guardian,
+                new FormationPosition(RowType.Front, 1), 250, 20, 20, 10);
+            guard.BaseThreat = 15f;
+
+            var vip = new UnitState("e_vip_cmdr", "VIP Commander", TeamSide.Enemy, UnitRole.Mage,
+                new FormationPosition(RowType.Back, 1), 160, 40, 10, 14);
+            vip.BaseThreat = 40f;
+
+            state.Units.Add(ranger);
+            state.Units.Add(guard);
+            state.Units.Add(vip);
+
+            CampaignGenerator.ConfigureBattleMission(state, MissionType.Elimination);
+            SquadAI.EvaluateAndUpdateStrategy(state, TeamSide.Player);
+
+            TargetScoreBreakdown vipBreakdown = TargetEvaluator.EvaluateEnemyTarget(state, ranger, quickShot, vip);
+            TargetScoreBreakdown guardBreakdown = TargetEvaluator.EvaluateEnemyTarget(state, ranger, quickShot, guard);
+
+            bool vipFlagged = vip.IsPriorityObjective;
+            bool strategyIsFocus = state.PlayerSquadStrategy == SquadStrategyType.FocusFire;
+            bool strategicScorePass = vipBreakdown.StrategicValueScore >= guardBreakdown.StrategicValueScore + 45f;
+
+            vip.CurrentHP = 0;
+            bool instantVictoryPass = TurnManager.IsBattleOver(state, out TeamSide? winner) && winner == TeamSide.Player && guard.IsAlive;
+
+            return vipFlagged && strategyIsFocus && strategicScorePass && instantVictoryPass;
+        }
+
+        private static bool VerifySurvivalMissionAndDefensiveAI()
+        {
+            var state = new BattleState
+            {
+                CurrentTurn = 1,
+                CurrentPhase = TurnPhase.Planning
+            };
+
+            var pGuard = new UnitState("p_guard", "Guard", TeamSide.Player, UnitRole.Guardian,
+                new FormationPosition(RowType.Front, 0), 200, 25, 20, 10);
+            pGuard.CurrentHP = 100; // 50% HP (< 55% ngưỡng Defensive trong Survival)
+
+            var eBruiser = new UnitState("e_bruiser", "Bruiser", TeamSide.Enemy, UnitRole.Vanguard,
+                new FormationPosition(RowType.Front, 0), 200, 30, 15, 12);
+
+            state.Units.Add(pGuard);
+            state.Units.Add(eBruiser);
+
+            CampaignGenerator.ConfigureBattleMission(state, MissionType.Survival, 5);
+            SquadAI.EvaluateAndUpdateStrategy(state, TeamSide.Player);
+
+            bool earlyDefense = state.PlayerSquadStrategy == SquadStrategyType.Defensive;
+
+            state.CurrentTurn = 3;
+            state.CurrentPhase = TurnPhase.AutoCombat;
+            bool notOverEarly = !TurnManager.IsBattleOver(state, out _);
+
+            state.CurrentTurn = 5;
+            state.CurrentPhase = TurnPhase.Resolution;
+            bool survivalWin = TurnManager.IsBattleOver(state, out TeamSide? winner) && winner == TeamSide.Player;
+
+            return earlyDefense && notOverEarly && survivalWin;
+        }
+
+        private static bool VerifyInfiniteEndlessProgression(int seed)
+        {
+            var run = CampaignGenerator.CreateNewRun(seed, CampaignGenerator.CreateDefaultPlayerWarband());
+
+            CampaignNode bossF4Node = run.GetNode("F4_L0");
+            if (bossF4Node == null) return false;
+
+            CampaignGenerator.CompleteNodeVictory(run, bossF4Node);
+            if (!run.IsRunCompleted) return false;
+
+            CampaignGenerator.AdvanceToNextEndlessFloor(run);
+            if (run.EndlessFloorDepth != 1 || run.GetNode("F5_L0") == null) return false;
+
+            CampaignNode f5Node = run.GetNode("F5_L0");
+            CampaignGenerator.CompleteNodeVictory(run, f5Node);
+            if (run.EndlessFloorDepth != 2 ||
+                run.GetNode("F6_L0") == null ||
+                run.GetNode("F6_L1") == null ||
+                !f5Node.NextNodeIds.Contains("F6_L0"))
+            {
+                return false;
+            }
+
+            CampaignNode f6Lane1 = run.GetNode("F6_L1");
+            CampaignGenerator.ResolveNonCombatNode(run, f6Lane1);
+            CampaignNode f7Boss = run.GetNode("F7_L0");
+            if (run.EndlessFloorDepth != 3 ||
+                f7Boss == null ||
+                f7Boss.NodeType != CampaignNodeType.Boss ||
+                !f6Lane1.NextNodeIds.Contains("F7_L0"))
+            {
+                return false;
+            }
+
+            CampaignGenerator.CompleteNodeVictory(run, f7Boss);
+            if (run.IsRunCompleted ||
+                run.EndlessFloorDepth != 4 ||
+                run.GetNode("F8_L0") == null ||
+                !f7Boss.NextNodeIds.Contains("F8_L0"))
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        private static bool VerifyPlayerBehaviorAndAdaptiveCounter()
+        {
+            var battle = new BattleState { CurrentTurn = 6 };
+            var ranger = new UnitState("p_ranger_test", "Ranger", TeamSide.Player, UnitRole.Ranger,
+                new FormationPosition(RowType.Back, 0), 160, 45, 8, 16);
+            battle.Units.Add(ranger);
+
+            for (int i = 0; i < 5; i++)
+            {
+                battle.CombatLog.Add("Used skill Quick Shot");
+            }
+            battle.CombatLog.Add("Used skill Hunter's Mark");
+            battle.CombatLog.Add("Used skill Hunter's Mark");
+            battle.CombatLog.Add("Used skill Heavy Slash");
+
+            var profile = new PlayerBehaviorProfile();
+            profile.RecordBattleTelemetry(battle);
+
+            SquadStrategyType counterStrat = profile.GetRecommendedCounterStrategy(out EnemyAffixType counterAffix, out string reason);
+
+            return profile.TotalBattlesRecorded == 1 &&
+                   profile.RangedPreferencePct >= 42f &&
+                   counterStrat == SquadStrategyType.BacklineDive &&
+                   counterAffix == EnemyAffixType.Berserker &&
+                   !string.IsNullOrEmpty(reason);
         }
     }
 }

@@ -3,7 +3,8 @@
     "rootNamespace": "CrownlessWarband.Presentation",
     "references": [
         "GUID:b793888544b420441872768d38652add",
-        "GUID:faa95fe210559cd44a0a4ba68919b7f3"
+        "GUID:faa95fe210559cd44a0a4ba68919b7f3",
+        "GUID:2bafac87e7f4b9b418d9448d219b01ab"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
