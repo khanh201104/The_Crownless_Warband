@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using CrownlessWarband.Core.Battle;
+using CrownlessWarband.Presentation.UI;
+using TMPro;
 using UnityEngine;
 
 namespace CrownlessWarband.Presentation.BattleView
@@ -106,22 +108,18 @@ namespace CrownlessWarband.Presentation.BattleView
             _floorLabelsCanvas.renderMode = RenderMode.WorldSpace;
             _floorLabelsCanvas.sortingOrder = -4;
 
-            Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            if (font == null)
-            {
-                font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-            }
+            TMP_FontAsset fontAsset = UguiThemeFactory.GetTmpFontAsset();
 
             Color playerZoneColor = new Color(0.490f, 0.827f, 0.988f, 0.55f); // #7DD3FC @ 0.55
             Color enemyZoneColor = new Color(0.988f, 0.647f, 0.647f, 0.55f);  // #FCA5A5 @ 0.55
 
-            CreateFloorZoneLabel(canvasObj.transform, font, "PlayerBackLabel", "BACK", -3.75f, -2.66f, playerZoneColor);
-            CreateFloorZoneLabel(canvasObj.transform, font, "PlayerMidLabel", "MID", -2.55f, -2.66f, playerZoneColor);
-            CreateFloorZoneLabel(canvasObj.transform, font, "PlayerFrontLabel", "FRONT", -1.35f, -2.66f, playerZoneColor);
+            CreateFloorZoneLabel(canvasObj.transform, fontAsset, "PlayerBackLabel", "BACK", -3.75f, -2.66f, playerZoneColor);
+            CreateFloorZoneLabel(canvasObj.transform, fontAsset, "PlayerMidLabel", "MID", -2.55f, -2.66f, playerZoneColor);
+            CreateFloorZoneLabel(canvasObj.transform, fontAsset, "PlayerFrontLabel", "FRONT", -1.35f, -2.66f, playerZoneColor);
 
-            CreateFloorZoneLabel(canvasObj.transform, font, "EnemyFrontLabel", "FRONT", 1.35f, -2.66f, enemyZoneColor);
-            CreateFloorZoneLabel(canvasObj.transform, font, "EnemyMidLabel", "MID", 2.55f, -2.66f, enemyZoneColor);
-            CreateFloorZoneLabel(canvasObj.transform, font, "EnemyBackLabel", "BACK", 3.75f, -2.66f, enemyZoneColor);
+            CreateFloorZoneLabel(canvasObj.transform, fontAsset, "EnemyFrontLabel", "FRONT", 1.35f, -2.66f, enemyZoneColor);
+            CreateFloorZoneLabel(canvasObj.transform, fontAsset, "EnemyMidLabel", "MID", 2.55f, -2.66f, enemyZoneColor);
+            CreateFloorZoneLabel(canvasObj.transform, fontAsset, "EnemyBackLabel", "BACK", 3.75f, -2.66f, enemyZoneColor);
 
             _isBuilt = true;
         }
@@ -146,7 +144,7 @@ namespace CrownlessWarband.Presentation.BattleView
 
         private static void CreateFloorZoneLabel(
             Transform parent,
-            Font font,
+            TMP_FontAsset fontAsset,
             string objName,
             string label,
             float worldX,
@@ -160,16 +158,20 @@ namespace CrownlessWarband.Presentation.BattleView
             rt.sizeDelta = new Vector2(180f, 48f);
             rt.anchoredPosition = new Vector2(worldX * 100f, worldY * 100f);
 
-            UnityEngine.UI.Text uiText = go.AddComponent<UnityEngine.UI.Text>();
-            uiText.font = font;
-            uiText.text = label;
-            uiText.fontSize = 32;
-            uiText.fontStyle = FontStyle.Bold;
-            uiText.alignment = TextAnchor.MiddleCenter;
-            uiText.color = color;
-            uiText.raycastTarget = false;
-            uiText.horizontalOverflow = HorizontalWrapMode.Overflow;
-            uiText.verticalOverflow = VerticalWrapMode.Overflow;
+            TextMeshProUGUI tmp = go.AddComponent<TextMeshProUGUI>();
+            if (fontAsset != null)
+            {
+                tmp.font = fontAsset;
+            }
+            tmp.text = label;
+            tmp.fontSize = 34f;
+            tmp.fontStyle = FontStyles.Normal;
+            tmp.alignment = TextAlignmentOptions.Center;
+            tmp.characterSpacing = 4f;
+            tmp.color = color;
+            tmp.raycastTarget = false;
+            tmp.textWrappingMode = TextWrappingModes.NoWrap;
+            tmp.overflowMode = TextOverflowModes.Overflow;
         }
 
         private static Sprite GetOrCreateBiomeSprite(BiomeType biome)

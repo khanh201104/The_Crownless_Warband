@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.TextCore.LowLevel;
 using UnityEngine.UI;
 
 namespace CrownlessWarband.Presentation.UI
@@ -20,6 +22,8 @@ namespace CrownlessWarband.Presentation.UI
         public static readonly Color TextMuted = new Color(0.64f, 0.69f, 0.78f, 1f);
 
         private static Font _cachedFont;
+        private static TMP_FontAsset _cachedTmpFont;
+        private static TMP_FontAsset _cachedTmpFallbackFont;
         private static Sprite _roundedPanelSprite;
         private static Sprite _roundedOutlineSprite;
         private static Sprite _circleSprite;
@@ -31,13 +35,121 @@ namespace CrownlessWarband.Presentation.UI
                 return _cachedFont;
             }
 
-            _cachedFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            _cachedFont = Resources.Load<Font>("Fonts/PaytoneOne-Regular");
+            if (_cachedFont == null)
+            {
+                _cachedFont = Resources.Load<Font>("Fonts/LilitaOne-Regular");
+            }
+            if (_cachedFont == null)
+            {
+                _cachedFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            }
             if (_cachedFont == null)
             {
                 _cachedFont = Resources.GetBuiltinResource<Font>("Arial.ttf");
             }
 
             return _cachedFont;
+        }
+
+        public static TMP_FontAsset GetTmpFontAsset()
+        {
+            if (_cachedTmpFont != null)
+            {
+                return _cachedTmpFont;
+            }
+
+            Font lilitaFont = Resources.Load<Font>("Fonts/LilitaOne-Regular");
+            Font paytoneFont = Resources.Load<Font>("Fonts/PaytoneOne-Regular");
+
+            if (paytoneFont != null)
+            {
+                _cachedTmpFallbackFont = TMP_FontAsset.CreateFontAsset(
+                    paytoneFont,
+                    90,
+                    9,
+                    GlyphRenderMode.SDFAA,
+                    1024,
+                    1024,
+                    AtlasPopulationMode.Dynamic,
+                    true);
+                if (_cachedTmpFallbackFont != null)
+                {
+                    _cachedTmpFallbackFont.name = "PaytoneOne-Regular SDF Fallback";
+                    ConfigureTmpMaterial(_cachedTmpFallbackFont.material);
+                }
+            }
+
+            if (lilitaFont != null)
+            {
+                _cachedTmpFont = TMP_FontAsset.CreateFontAsset(
+                    lilitaFont,
+                    90,
+                    9,
+                    GlyphRenderMode.SDFAA,
+                    1024,
+                    1024,
+                    AtlasPopulationMode.Dynamic,
+                    true);
+                if (_cachedTmpFont != null)
+                {
+                    _cachedTmpFont.name = "LilitaOne-Regular SDF";
+                    ConfigureTmpMaterial(_cachedTmpFont.material);
+                    if (_cachedTmpFallbackFont != null)
+                    {
+                        if (_cachedTmpFont.fallbackFontAssetTable == null)
+                        {
+                            _cachedTmpFont.fallbackFontAssetTable = new List<TMP_FontAsset>(2);
+                        }
+                        _cachedTmpFont.fallbackFontAssetTable.Add(_cachedTmpFallbackFont);
+                    }
+                }
+            }
+
+            if (_cachedTmpFont == null)
+            {
+                _cachedTmpFont = _cachedTmpFallbackFont != null ? _cachedTmpFallbackFont : TMP_Settings.defaultFontAsset;
+            }
+
+            return _cachedTmpFont;
+        }
+
+        private static void ConfigureTmpMaterial(Material mat)
+        {
+            if (mat == null) return;
+
+            ShaderUtilities.GetShaderPropertyIDs();
+            mat.EnableKeyword(ShaderUtilities.Keyword_Outline);
+            if (mat.HasProperty(ShaderUtilities.ID_OutlineColor))
+            {
+                mat.SetColor(ShaderUtilities.ID_OutlineColor, new Color32(6, 10, 18, 235));
+            }
+            if (mat.HasProperty(ShaderUtilities.ID_OutlineWidth))
+            {
+                mat.SetFloat(ShaderUtilities.ID_OutlineWidth, 0.14f);
+            }
+
+            mat.EnableKeyword(ShaderUtilities.Keyword_Underlay);
+            if (mat.HasProperty(ShaderUtilities.ID_UnderlayColor))
+            {
+                mat.SetColor(ShaderUtilities.ID_UnderlayColor, new Color32(0, 0, 0, 175));
+            }
+            if (mat.HasProperty(ShaderUtilities.ID_UnderlayOffsetX))
+            {
+                mat.SetFloat(ShaderUtilities.ID_UnderlayOffsetX, 0.35f);
+            }
+            if (mat.HasProperty(ShaderUtilities.ID_UnderlayOffsetY))
+            {
+                mat.SetFloat(ShaderUtilities.ID_UnderlayOffsetY, -0.55f);
+            }
+            if (mat.HasProperty(ShaderUtilities.ID_UnderlayDilate))
+            {
+                mat.SetFloat(ShaderUtilities.ID_UnderlayDilate, 0.12f);
+            }
+            if (mat.HasProperty(ShaderUtilities.ID_UnderlaySoftness))
+            {
+                mat.SetFloat(ShaderUtilities.ID_UnderlaySoftness, 0.35f);
+            }
         }
 
         public static UnityEngine.EventSystems.EventSystem EnsureEventSystem()
@@ -226,35 +338,70 @@ namespace CrownlessWarband.Presentation.UI
             return image;
         }
 
-        public static UnityEngine.UI.Text CreateText(
+        public static TextAlignmentOptions ConvertAlignment(TextAnchor anchor)
+        {
+            switch (anchor)
+            {
+                case TextAnchor.UpperLeft:    return TextAlignmentOptions.TopLeft;
+                case TextAnchor.UpperCenter:  return TextAlignmentOptions.Top;
+                case TextAnchor.UpperRight:   return TextAlignmentOptions.TopRight;
+                case TextAnchor.MiddleLeft:   return TextAlignmentOptions.Left;
+                case TextAnchor.MiddleCenter: return TextAlignmentOptions.Center;
+                case TextAnchor.MiddleRight:  return TextAlignmentOptions.Right;
+                case TextAnchor.LowerLeft:    return TextAlignmentOptions.BottomLeft;
+                case TextAnchor.LowerCenter:  return TextAlignmentOptions.Bottom;
+                case TextAnchor.LowerRight:   return TextAlignmentOptions.BottomRight;
+                default:                      return TextAlignmentOptions.Left;
+            }
+        }
+
+        public static void ApplyTitleGradient(TextMeshProUGUI tmp, Color topColor, Color bottomColor)
+        {
+            if (tmp == null) return;
+            tmp.enableVertexGradient = true;
+            tmp.colorGradient = new VertexGradient(topColor, topColor, bottomColor, bottomColor);
+        }
+
+        public static TextMeshProUGUI CreateTmpText(
             string name,
             Transform parent,
             string text,
-            int fontSize,
+            float fontSize,
             Color color,
             TextAnchor alignment = TextAnchor.MiddleLeft,
             FontStyle fontStyle = FontStyle.Normal)
         {
             RectTransform rt = CreateRect(name, parent);
-            UnityEngine.UI.Text uiText = rt.gameObject.AddComponent<UnityEngine.UI.Text>();
-            uiText.font = GetDefaultFont();
-            uiText.text = text ?? string.Empty;
-            uiText.fontSize = fontSize;
-            uiText.color = color;
-            uiText.alignment = alignment;
-            uiText.fontStyle = fontStyle;
-            uiText.horizontalOverflow = HorizontalWrapMode.Wrap;
-            uiText.verticalOverflow = VerticalWrapMode.Overflow;
-            uiText.raycastTarget = false;
-            return uiText;
+            TextMeshProUGUI tmp = rt.gameObject.AddComponent<TextMeshProUGUI>();
+            TMP_FontAsset fontAsset = GetTmpFontAsset();
+            if (fontAsset != null)
+            {
+                tmp.font = fontAsset;
+                if (fontAsset.material != null)
+                {
+                    tmp.fontSharedMaterial = fontAsset.material;
+                }
+            }
+            tmp.text = text ?? string.Empty;
+            tmp.fontSize = fontSize;
+            tmp.color = color;
+            tmp.alignment = ConvertAlignment(alignment);
+            tmp.fontStyle = (fontStyle == FontStyle.Italic || fontStyle == FontStyle.BoldAndItalic)
+                ? FontStyles.Italic
+                : FontStyles.Normal;
+            tmp.textWrappingMode = TextWrappingModes.Normal;
+            tmp.overflowMode = TextOverflowModes.Overflow;
+            tmp.extraPadding = true;
+            tmp.raycastTarget = false;
+            return tmp;
         }
 
-        public static UnityEngine.UI.Button CreateButton(
+        public static UnityEngine.UI.Button CreateTmpButton(
             string name,
             Transform parent,
             string label,
             Color bgColor,
-            int fontSize = 16,
+            float fontSize = 16f,
             bool isCircle = false)
         {
             RectTransform rt = CreateRect(name, parent);
@@ -290,14 +437,14 @@ namespace CrownlessWarband.Presentation.UI
             colors.fadeDuration = 0.08f;
             button.colors = colors;
 
-            UnityEngine.UI.Text labelText = CreateText(
+            TextMeshProUGUI labelText = CreateTmpText(
                 "Label",
                 rt,
                 label,
                 fontSize,
                 TextPrimary,
                 TextAnchor.MiddleCenter,
-                FontStyle.Bold);
+                FontStyle.Normal);
             RectTransform labelRt = labelText.rectTransform;
             labelRt.anchorMin = Vector2.zero;
             labelRt.anchorMax = Vector2.one;
@@ -305,6 +452,83 @@ namespace CrownlessWarband.Presentation.UI
             labelRt.offsetMax = new Vector2(-8f, -4f);
 
             return button;
+        }
+
+        public static TMP_InputField CreateTmpInputField(
+            string name,
+            Transform parent,
+            string placeholderText,
+            float fontSize = 16f)
+        {
+            UnityEngine.UI.Image bgImage = CreatePanel(
+                string.IsNullOrEmpty(name) ? "InputField" : name,
+                parent,
+                new Color(0.06f, 0.08f, 0.12f, 0.96f),
+                true);
+            RectTransform bgRt = bgImage.rectTransform;
+
+            CreateOutlineFrame("Outline", bgRt, new Color(0.28f, 0.36f, 0.48f, 0.9f));
+
+            TMP_InputField inputField = bgRt.gameObject.AddComponent<TMP_InputField>();
+            inputField.targetGraphic = bgImage;
+            inputField.lineType = TMP_InputField.LineType.SingleLine;
+
+            RectTransform textAreaRt = CreateRect("Text Area", bgRt);
+            textAreaRt.anchorMin = Vector2.zero;
+            textAreaRt.anchorMax = Vector2.one;
+            textAreaRt.offsetMin = new Vector2(12f, 4f);
+            textAreaRt.offsetMax = new Vector2(-12f, -4f);
+            UnityEngine.UI.RectMask2D mask = textAreaRt.gameObject.AddComponent<UnityEngine.UI.RectMask2D>();
+            mask.padding = new Vector4(-2f, -2f, -2f, -2f);
+
+            TextMeshProUGUI placeholder = CreateTmpText(
+                "Placeholder",
+                textAreaRt,
+                placeholderText,
+                fontSize,
+                TextMuted,
+                TextAnchor.MiddleLeft,
+                FontStyle.Italic);
+            placeholder.raycastTarget = false;
+            placeholder.textWrappingMode = TextWrappingModes.NoWrap;
+            placeholder.overflowMode = TextOverflowModes.Truncate;
+            RectTransform placeholderRt = placeholder.rectTransform;
+            placeholderRt.anchorMin = Vector2.zero;
+            placeholderRt.anchorMax = Vector2.one;
+            placeholderRt.offsetMin = Vector2.zero;
+            placeholderRt.offsetMax = Vector2.zero;
+
+            TextMeshProUGUI inputText = CreateTmpText(
+                "Text",
+                textAreaRt,
+                string.Empty,
+                fontSize,
+                TextPrimary,
+                TextAnchor.MiddleLeft,
+                FontStyle.Normal);
+            inputText.richText = false;
+            inputText.raycastTarget = false;
+            inputText.textWrappingMode = TextWrappingModes.NoWrap;
+            inputText.overflowMode = TextOverflowModes.Overflow;
+            RectTransform textRt = inputText.rectTransform;
+            textRt.anchorMin = Vector2.zero;
+            textRt.anchorMax = Vector2.one;
+            textRt.offsetMin = Vector2.zero;
+            textRt.offsetMax = Vector2.zero;
+
+            inputField.textViewport = textAreaRt;
+            inputField.textComponent = inputText;
+            inputField.placeholder = placeholder;
+            TMP_FontAsset fontAsset = GetTmpFontAsset();
+            if (fontAsset != null)
+            {
+                inputField.fontAsset = fontAsset;
+            }
+            inputField.pointSize = fontSize;
+            inputField.customCaretColor = true;
+            inputField.caretColor = AccentGold;
+            inputField.selectionColor = new Color(0.13f, 0.83f, 0.93f, 0.35f);
+            return inputField;
         }
 
         public static UnityEngine.UI.Slider CreateSlider(
@@ -382,63 +606,6 @@ namespace CrownlessWarband.Presentation.UI
             outlineImage.color = borderColor;
             outlineImage.raycastTarget = false;
             return outlineImage;
-        }
-
-        public static UnityEngine.UI.InputField CreateInputField(
-            string name,
-            Transform parent,
-            string placeholderText,
-            int fontSize = 16)
-        {
-            UnityEngine.UI.Image bgImage = CreatePanel(
-                string.IsNullOrEmpty(name) ? "InputField" : name,
-                parent,
-                new Color(0.06f, 0.08f, 0.12f, 0.96f),
-                true);
-            RectTransform bgRt = bgImage.rectTransform;
-
-            CreateOutlineFrame("Outline", bgRt, new Color(0.28f, 0.36f, 0.48f, 0.9f));
-
-            UnityEngine.UI.InputField inputField = bgRt.gameObject.AddComponent<UnityEngine.UI.InputField>();
-            inputField.targetGraphic = bgImage;
-            inputField.lineType = UnityEngine.UI.InputField.LineType.SingleLine;
-
-            UnityEngine.UI.Text placeholder = CreateText(
-                "Placeholder",
-                bgRt,
-                placeholderText,
-                fontSize,
-                TextMuted,
-                TextAnchor.MiddleLeft,
-                FontStyle.Italic);
-            placeholder.raycastTarget = false;
-            RectTransform placeholderRt = placeholder.rectTransform;
-            placeholderRt.anchorMin = Vector2.zero;
-            placeholderRt.anchorMax = Vector2.one;
-            placeholderRt.offsetMin = new Vector2(12f, 4f);
-            placeholderRt.offsetMax = new Vector2(-12f, -4f);
-
-            UnityEngine.UI.Text inputText = CreateText(
-                "Text",
-                bgRt,
-                string.Empty,
-                fontSize,
-                TextPrimary,
-                TextAnchor.MiddleLeft,
-                FontStyle.Normal);
-            inputText.supportRichText = false;
-            inputText.raycastTarget = false;
-            inputText.horizontalOverflow = HorizontalWrapMode.Overflow;
-            inputText.verticalOverflow = VerticalWrapMode.Truncate;
-            RectTransform textRt = inputText.rectTransform;
-            textRt.anchorMin = Vector2.zero;
-            textRt.anchorMax = Vector2.one;
-            textRt.offsetMin = new Vector2(12f, 4f);
-            textRt.offsetMax = new Vector2(-12f, -4f);
-
-            inputField.textComponent = inputText;
-            inputField.placeholder = placeholder;
-            return inputField;
         }
 
         private static float ComputeRoundedRectAlpha(float px, float py, float width, float height, float radius)

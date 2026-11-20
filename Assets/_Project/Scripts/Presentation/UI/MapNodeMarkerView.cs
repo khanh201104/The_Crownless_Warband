@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using CrownlessWarband.Core.Roguelite;
+using TMPro;
 using UnityEngine;
 
 namespace CrownlessWarband.Presentation.UI
@@ -21,12 +22,14 @@ namespace CrownlessWarband.Presentation.UI
         private UnityEngine.UI.Button _iconButton;
         private UnityEngine.UI.Image _iconArt;
         private GameObject _doneBadgeRoot;
-        private UnityEngine.UI.Text _plateText;
+        private UnityEngine.UI.Image _plateOutline;
+        private TextMeshProUGUI _plateText;
 
         private CampaignNode _boundNode;
         private bool _isBuilt;
         private bool _canSelect;
         private bool _isTravelingLocked;
+        private bool _isHovered;
 
         private void Awake()
         {
@@ -35,18 +38,27 @@ namespace CrownlessWarband.Presentation.UI
 
         private void Update()
         {
-            if (_haloRing == null) return;
-
-            bool showHalo = _canSelect && !_isTravelingLocked;
-            if (_haloRing.gameObject.activeSelf != showHalo)
+            if (_haloRing != null)
             {
-                _haloRing.gameObject.SetActive(showHalo);
+                bool showHalo = _canSelect && !_isTravelingLocked;
+                if (_haloRing.gameObject.activeSelf != showHalo)
+                {
+                    _haloRing.gameObject.SetActive(showHalo);
+                }
+
+                if (showHalo)
+                {
+                    float pulse = 1.0f + 0.08f * Mathf.Sin(Time.unscaledTime * 4f);
+                    _haloRing.rectTransform.localScale = new Vector3(pulse, pulse, 1f);
+                }
             }
 
-            if (showHalo)
+            if (_iconButton != null)
             {
-                float pulse = 1.0f + 0.08f * Mathf.Sin(Time.unscaledTime * 4f);
-                _haloRing.rectTransform.localScale = new Vector3(pulse, pulse, 1f);
+                float targetScale = (_isHovered && _canSelect && !_isTravelingLocked) ? 1.08f : 1.0f;
+                float currentScale = _iconButton.transform.localScale.x;
+                float nextScale = Mathf.Lerp(currentScale, targetScale, Time.unscaledDeltaTime * 14f);
+                _iconButton.transform.localScale = new Vector3(nextScale, nextScale, 1f);
             }
         }
 
@@ -73,11 +85,12 @@ namespace CrownlessWarband.Presentation.UI
             gameObject.SetActive(true);
 
             bool isBoss = node.NodeType == CampaignNodeType.Boss;
-            float btnSize = isBoss ? 104f : 82f;
+            bool isElite = node.NodeType == CampaignNodeType.EliteCombat;
+            float btnSize = isBoss ? 116f : (isElite ? 96f : 88f);
             _iconButton.GetComponent<RectTransform>().sizeDelta = new Vector2(btnSize, btnSize);
-            _borderCircle.rectTransform.sizeDelta = new Vector2(btnSize + 10f, btnSize + 10f);
-            _haloRing.rectTransform.sizeDelta = new Vector2(btnSize + 24f, btnSize + 24f);
-            _iconArt.rectTransform.sizeDelta = new Vector2(btnSize * 0.72f, btnSize * 0.72f);
+            _borderCircle.rectTransform.sizeDelta = new Vector2(btnSize + 12f, btnSize + 12f);
+            _haloRing.rectTransform.sizeDelta = new Vector2(btnSize + 28f, btnSize + 28f);
+            _iconArt.rectTransform.sizeDelta = new Vector2(btnSize * 0.76f, btnSize * 0.76f);
             _iconArt.sprite = GetOrCreateNodeIconSprite(node.NodeType);
 
             _canSelect = isAvailable && isInteractable;
@@ -90,31 +103,31 @@ namespace CrownlessWarband.Presentation.UI
 
             if (isCurrent)
             {
-                bgColor = new Color(0.26f, 0.19f, 0.07f, 0.98f);
+                bgColor = new Color(0.28f, 0.20f, 0.07f, 0.98f);
                 borderColor = UguiThemeFactory.AccentGold;
-                haloColor = new Color(0.96f, 0.62f, 0.04f, 0.42f);
+                haloColor = new Color(0.98f, 0.72f, 0.12f, 0.46f);
                 groupAlpha = 1f;
             }
             else if (isAvailable)
             {
-                bgColor = new Color(0.11f, 0.25f, 0.30f, 0.98f);
+                bgColor = new Color(0.10f, 0.28f, 0.36f, 0.98f);
                 borderColor = UguiThemeFactory.AllyCyan;
-                haloColor = new Color(0.13f, 0.83f, 0.93f, 0.40f);
+                haloColor = new Color(0.13f, 0.83f, 0.93f, 0.45f);
                 groupAlpha = 1f;
             }
             else if (node.IsCompleted)
             {
-                bgColor = new Color(0.11f, 0.17f, 0.15f, 0.92f);
-                borderColor = new Color(0.24f, 0.68f, 0.45f, 0.78f);
+                bgColor = new Color(0.11f, 0.22f, 0.17f, 0.95f);
+                borderColor = new Color(0.28f, 0.78f, 0.48f, 0.88f);
                 haloColor = Color.clear;
-                groupAlpha = 0.92f;
+                groupAlpha = 0.95f;
             }
             else
             {
-                bgColor = new Color(0.08f, 0.09f, 0.13f, 0.85f);
-                borderColor = new Color(0.32f, 0.36f, 0.45f, 0.6f);
+                bgColor = new Color(0.11f, 0.14f, 0.20f, 0.92f);
+                borderColor = new Color(0.45f, 0.52f, 0.64f, 0.75f);
                 haloColor = Color.clear;
-                groupAlpha = 0.55f;
+                groupAlpha = 0.78f;
             }
 
             SetCircleButtonColor(_iconButton, bgColor);
@@ -122,15 +135,20 @@ namespace CrownlessWarband.Presentation.UI
             _haloRing.color = haloColor;
             _canvasGroup.alpha = groupAlpha;
 
+            if (_plateOutline != null)
+            {
+                _plateOutline.color = isCurrent ? UguiThemeFactory.AccentGold : (isAvailable ? UguiThemeFactory.AllyCyan : borderColor);
+            }
+
             _doneBadgeRoot.SetActive(node.IsCompleted);
 
             string shortTitle = string.IsNullOrEmpty(node.Title) ? node.NodeType.ToString() : node.Title;
-            if (shortTitle.Length > 24)
+            if (shortTitle.Length > 26)
             {
-                shortTitle = shortTitle.Substring(0, 22) + "..";
+                shortTitle = shortTitle.Substring(0, 24) + "..";
             }
-            _plateText.text = isBoss ? $"[BOSS] {shortTitle}" : $"{node.NodeId}: {shortTitle}";
-            _plateText.color = isBoss ? UguiThemeFactory.AccentGold : UguiThemeFactory.TextPrimary;
+            _plateText.text = isBoss ? $"[TRÙM] {shortTitle}" : shortTitle;
+            _plateText.color = isBoss ? UguiThemeFactory.AccentGold : (isAvailable || isCurrent ? Color.white : new Color(0.86f, 0.90f, 0.96f, 1f));
         }
 
         public void SetTravelingLock(bool locked)
@@ -144,6 +162,7 @@ namespace CrownlessWarband.Presentation.UI
 
         public void OnPointerEnter(UnityEngine.EventSystems.PointerEventData eventData)
         {
+            _isHovered = true;
             if (_boundNode != null)
             {
                 OnNodeHoverChanged?.Invoke(_boundNode, _rootRect, true);
@@ -152,6 +171,7 @@ namespace CrownlessWarband.Presentation.UI
 
         public void OnPointerExit(UnityEngine.EventSystems.PointerEventData eventData)
         {
+            _isHovered = false;
             if (_boundNode != null)
             {
                 OnNodeHoverChanged?.Invoke(_boundNode, _rootRect, false);
@@ -168,7 +188,7 @@ namespace CrownlessWarband.Presentation.UI
             {
                 _rootRect = gameObject.AddComponent<RectTransform>();
             }
-            _rootRect.sizeDelta = new Vector2(148f, 134f);
+            _rootRect.sizeDelta = new Vector2(204f, 156f);
 
             _canvasGroup = gameObject.AddComponent<CanvasGroup>();
 
@@ -176,8 +196,8 @@ namespace CrownlessWarband.Presentation.UI
             RectTransform haloRt = UguiThemeFactory.CreateRect("HaloRing", _rootRect);
             haloRt.anchorMin = new Vector2(0.5f, 0.5f);
             haloRt.anchorMax = new Vector2(0.5f, 0.5f);
-            haloRt.anchoredPosition = new Vector2(0f, 10f);
-            haloRt.sizeDelta = new Vector2(106f, 106f);
+            haloRt.anchoredPosition = new Vector2(0f, 16f);
+            haloRt.sizeDelta = new Vector2(116f, 116f);
             _haloRing = haloRt.gameObject.AddComponent<UnityEngine.UI.Image>();
             _haloRing.sprite = UguiThemeFactory.GetCircleSprite();
             _haloRing.raycastTarget = false;
@@ -187,21 +207,21 @@ namespace CrownlessWarband.Presentation.UI
             RectTransform borderRt = UguiThemeFactory.CreateRect("BorderCircle", _rootRect);
             borderRt.anchorMin = new Vector2(0.5f, 0.5f);
             borderRt.anchorMax = new Vector2(0.5f, 0.5f);
-            borderRt.anchoredPosition = new Vector2(0f, 10f);
-            borderRt.sizeDelta = new Vector2(92f, 92f);
+            borderRt.anchoredPosition = new Vector2(0f, 16f);
+            borderRt.sizeDelta = new Vector2(100f, 100f);
             _borderCircle = borderRt.gameObject.AddComponent<UnityEngine.UI.Image>();
             _borderCircle.sprite = UguiThemeFactory.GetCircleSprite();
             _borderCircle.raycastTarget = false;
 
             // Circular clickable button
-            _iconButton = UguiThemeFactory.CreateButton("NodeIconButton", _rootRect, string.Empty, UguiThemeFactory.PanelBg, 12, true);
+            _iconButton = UguiThemeFactory.CreateTmpButton("NodeIconButton", _rootRect, string.Empty, UguiThemeFactory.PanelBg, 12f, true);
             RectTransform btnRt = _iconButton.GetComponent<RectTransform>();
             btnRt.anchorMin = new Vector2(0.5f, 0.5f);
             btnRt.anchorMax = new Vector2(0.5f, 0.5f);
-            btnRt.anchoredPosition = new Vector2(0f, 10f);
-            btnRt.sizeDelta = new Vector2(82f, 82f);
+            btnRt.anchoredPosition = new Vector2(0f, 16f);
+            btnRt.sizeDelta = new Vector2(88f, 88f);
 
-            UnityEngine.UI.Text defaultBtnTxt = _iconButton.GetComponentInChildren<UnityEngine.UI.Text>();
+            TextMeshProUGUI defaultBtnTxt = _iconButton.GetComponentInChildren<TextMeshProUGUI>();
             if (defaultBtnTxt != null) defaultBtnTxt.gameObject.SetActive(false);
 
             _iconButton.onClick.AddListener(HandleClicked);
@@ -210,12 +230,12 @@ namespace CrownlessWarband.Presentation.UI
             RectTransform artRt = UguiThemeFactory.CreateRect("IconArt", btnRt);
             artRt.anchorMin = new Vector2(0.5f, 0.5f);
             artRt.anchorMax = new Vector2(0.5f, 0.5f);
-            artRt.sizeDelta = new Vector2(60f, 60f);
+            artRt.sizeDelta = new Vector2(67f, 67f);
             _iconArt = artRt.gameObject.AddComponent<UnityEngine.UI.Image>();
             _iconArt.preserveAspect = true;
             _iconArt.raycastTarget = false;
 
-            // Done Badge (top-right OK pill)
+            // Done Badge (top-right XONG pill)
             UnityEngine.UI.Image doneBg = UguiThemeFactory.CreatePanel(
                 "DoneBadge",
                 _rootRect,
@@ -225,15 +245,15 @@ namespace CrownlessWarband.Presentation.UI
             RectTransform doneRt = doneBg.rectTransform;
             doneRt.anchorMin = new Vector2(0.5f, 0.5f);
             doneRt.anchorMax = new Vector2(0.5f, 0.5f);
-            doneRt.anchoredPosition = new Vector2(34f, 44f);
-            doneRt.sizeDelta = new Vector2(30f, 18f);
+            doneRt.anchoredPosition = new Vector2(38f, 50f);
+            doneRt.sizeDelta = new Vector2(44f, 22f);
             _doneBadgeRoot = doneBg.gameObject;
 
-            UnityEngine.UI.Text doneText = UguiThemeFactory.CreateText(
+            TextMeshProUGUI doneText = UguiThemeFactory.CreateTmpText(
                 "OkText",
                 doneRt,
-                "OK",
-                10,
+                "XONG",
+                11f,
                 UguiThemeFactory.TextPrimary,
                 TextAnchor.MiddleCenter,
                 FontStyle.Bold);
@@ -243,37 +263,37 @@ namespace CrownlessWarband.Presentation.UI
             doneText.rectTransform.offsetMax = Vector2.zero;
             _doneBadgeRoot.SetActive(false);
 
-            // Compact Nameplate beneath marker (168 x 24)
+            // Nameplate beneath marker (198 x 34)
             UnityEngine.UI.Image plateBg = UguiThemeFactory.CreatePanel(
                 "CompactPlate",
                 _rootRect,
-                new Color(0.06f, 0.08f, 0.12f, 0.92f),
+                new Color(0.06f, 0.09f, 0.14f, 0.96f),
                 true);
             plateBg.raycastTarget = false;
             RectTransform plateRt = plateBg.rectTransform;
             plateRt.anchorMin = new Vector2(0.5f, 0f);
             plateRt.anchorMax = new Vector2(0.5f, 0f);
             plateRt.pivot = new Vector2(0.5f, 0f);
-            plateRt.sizeDelta = new Vector2(168f, 24f);
+            plateRt.sizeDelta = new Vector2(198f, 34f);
             plateRt.anchoredPosition = new Vector2(0f, -6f);
-            UguiThemeFactory.CreateOutlineFrame("Outline", plateRt, new Color(0.32f, 0.40f, 0.52f, 0.65f));
+            _plateOutline = UguiThemeFactory.CreateOutlineFrame("Outline", plateRt, new Color(0.38f, 0.48f, 0.62f, 0.85f));
 
-            _plateText = UguiThemeFactory.CreateText(
+            _plateText = UguiThemeFactory.CreateTmpText(
                 "PlateText",
                 plateRt,
                 string.Empty,
-                11,
+                14f,
                 UguiThemeFactory.TextPrimary,
                 TextAnchor.MiddleCenter,
                 FontStyle.Bold);
-            _plateText.resizeTextForBestFit = true;
-            _plateText.resizeTextMinSize = 8;
-            _plateText.resizeTextMaxSize = 11;
-            _plateText.verticalOverflow = VerticalWrapMode.Truncate;
+            _plateText.enableAutoSizing = true;
+            _plateText.fontSizeMin = 11f;
+            _plateText.fontSizeMax = 15f;
+            _plateText.overflowMode = TextOverflowModes.Truncate;
             _plateText.rectTransform.anchorMin = Vector2.zero;
             _plateText.rectTransform.anchorMax = Vector2.one;
-            _plateText.rectTransform.offsetMin = new Vector2(4f, 1f);
-            _plateText.rectTransform.offsetMax = new Vector2(-4f, -1f);
+            _plateText.rectTransform.offsetMin = new Vector2(8f, 2f);
+            _plateText.rectTransform.offsetMax = new Vector2(-8f, -2f);
         }
 
         private void HandleClicked()
@@ -303,7 +323,7 @@ namespace CrownlessWarband.Presentation.UI
                 return cached;
             }
 
-            const int size = 96;
+            const int size = 128;
             Texture2D tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
             tex.name = $"MapNodeIcon_{nodeType}";
             tex.filterMode = FilterMode.Bilinear;
@@ -323,7 +343,7 @@ namespace CrownlessWarband.Presentation.UI
             tex.SetPixels(pixels);
             tex.Apply();
 
-            Sprite sprite = Sprite.Create(tex, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), 96f);
+            Sprite sprite = Sprite.Create(tex, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), 128f);
             sprite.name = $"NodeIconSprite_{nodeType}";
             _iconSpriteCache[nodeType] = sprite;
             return sprite;
@@ -331,12 +351,16 @@ namespace CrownlessWarband.Presentation.UI
 
         private static Color SampleNodeIconPixel(CampaignNodeType nodeType, float px, float py)
         {
-            // Dark circular emblem base
-            float baseDist = Mathf.Sqrt(px * px + py * py) - 0.44f;
+            // Medieval medallion base with bronze/gold rim
+            float dist = Mathf.Sqrt(px * px + py * py);
+            float baseDist = dist - 0.44f;
             float baseAlpha = Mathf.Clamp01((0.01f - baseDist) / 0.02f);
             if (baseAlpha <= 0f) return Color.clear;
 
-            Color bg = new Color(0.08f, 0.11f, 0.16f, 0.90f);
+            Color centerBg = new Color(0.10f, 0.14f, 0.20f, 0.95f);
+            Color rimBronze = new Color(0.72f, 0.56f, 0.28f, 0.95f);
+            float rimMask = Mathf.Clamp01((dist - 0.375f) / 0.015f);
+            Color bg = Color.Lerp(centerBg, rimBronze, rimMask);
             Color fg = Color.clear;
 
             switch (nodeType)

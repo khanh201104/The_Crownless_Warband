@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using CrownlessWarband.Core.Battle;
 using CrownlessWarband.Core.Roguelite;
 using CrownlessWarband.Presentation.BattleView;
+using TMPro;
 using UnityEngine;
 
 namespace CrownlessWarband.Presentation.UI
@@ -19,14 +20,14 @@ namespace CrownlessWarband.Presentation.UI
             public UnityEngine.UI.Image Background;
             public UnityEngine.UI.Image BorderOutline;
             public UnityEngine.UI.Image PortraitBg;
-            public UnityEngine.UI.Text NameText;
-            public UnityEngine.UI.Text RoleCodeText;
-            public UnityEngine.UI.Text StatusBadgeText;
+            public TextMeshProUGUI NameText;
+            public TextMeshProUGUI RoleCodeText;
+            public TextMeshProUGUI StatusBadgeText;
             public GameObject StatusBadgeRoot;
             public RectTransform HpFillRect;
             public RectTransform ShieldFillRect;
             public RectTransform EnergyFillRect;
-            public UnityEngine.UI.Text HpValueText;
+            public TextMeshProUGUI HpValueText;
 
             public string BoundUnitId;
             public int CachedHp = -1;
@@ -46,11 +47,11 @@ namespace CrownlessWarband.Presentation.UI
             public GameObject Root;
             public GameObject ModePillRoot;
             public UnityEngine.UI.Button ModePillButton;
-            public UnityEngine.UI.Text ModePillText;
+            public TextMeshProUGUI ModePillText;
             public GameObject ManualReadyRing;
             public UnityEngine.UI.Button OrbButton;
-            public UnityEngine.UI.Text OrbCodeText;
-            public UnityEngine.UI.Text OrbCostText;
+            public TextMeshProUGUI OrbCodeText;
+            public TextMeshProUGUI OrbCostText;
 
             public string BoundUnitId;
             public SkillInstance BoundSkill;
@@ -72,21 +73,21 @@ namespace CrownlessWarband.Presentation.UI
         private Canvas _hudCanvas;
 
         // Top-Left Status Badge
-        private UnityEngine.UI.Text _statusLine1Text;
-        private UnityEngine.UI.Text _statusLine2Text;
+        private TextMeshProUGUI _statusLine1Text;
+        private TextMeshProUGUI _statusLine2Text;
 
         // Top-Center Banner & Boss HP
         private UnityEngine.UI.Image _turnBannerOutline;
-        private UnityEngine.UI.Text _turnBannerText;
+        private TextMeshProUGUI _turnBannerText;
         private GameObject _bossBarRoot;
         private RectTransform _bossHpFillRect;
-        private UnityEngine.UI.Text _bossHpText;
+        private TextMeshProUGUI _bossHpText;
 
         // Top-Right Controls
         private UnityEngine.UI.Button _speedButton;
-        private UnityEngine.UI.Text _speedButtonText;
+        private TextMeshProUGUI _speedButtonText;
         private UnityEngine.UI.Button _pauseButton;
-        private UnityEngine.UI.Text _pauseButtonText;
+        private TextMeshProUGUI _pauseButtonText;
         private UnityEngine.UI.Button _stepButton;
         private UnityEngine.UI.Button _settingsButton;
 
@@ -95,28 +96,28 @@ namespace CrownlessWarband.Presentation.UI
         private readonly List<UnitState> _playerUnitsBuffer = new List<UnitState>(8);
 
         // Bottom-Right Skill Orbs & Turn Action
-        private UnityEngine.UI.Text _focusedAllyLabel;
+        private TextMeshProUGUI _focusedAllyLabel;
         private UnityEngine.UI.Button _policyButton;
-        private UnityEngine.UI.Text _orbStatusHintText;
+        private TextMeshProUGUI _orbStatusHintText;
         private readonly SkillOrbSlot[] _skillOrbs = new SkillOrbSlot[MaxSkillOrbs];
         private UnityEngine.UI.Button _runTurnButton;
-        private UnityEngine.UI.Text _runTurnButtonText;
+        private TextMeshProUGUI _runTurnButtonText;
         private UnityEngine.UI.Image _runTurnOutline;
 
         // Center Victory & Defeat Modals (separated)
         private GameObject _victoryModalRoot;
-        private UnityEngine.UI.Text _victoryTitleText;
+        private TextMeshProUGUI _victoryTitleText;
         private GameObject _defeatModalRoot;
         private UnityEngine.UI.Button _victoryClaimButton;
-        private UnityEngine.UI.Text _victoryClaimButtonText;
+        private TextMeshProUGUI _victoryClaimButtonText;
         private UnityEngine.UI.Button _endlessButton;
         private UnityEngine.UI.Button _defeatReturnButton;
 
         // Final Campaign Victory / Defeat Game Over Summary Modal
         private GameObject _finalGameOverModalRoot;
         private UnityEngine.UI.Image _finalGameOverCardOutline;
-        private UnityEngine.UI.Text _finalGameOverTitleText;
-        private UnityEngine.UI.Text _finalGameOverDescText;
+        private TextMeshProUGUI _finalGameOverTitleText;
+        private TextMeshProUGUI _finalGameOverDescText;
         private UnityEngine.UI.Button _finalPlayAgainButton;
         private UnityEngine.UI.Button _finalMainMenuButton;
         private BattleState _lastObservedBattleState;
@@ -373,36 +374,36 @@ namespace CrownlessWarband.Presentation.UI
 
             UguiThemeFactory.CreateOutlineFrame("Outline", rt, new Color(0.13f, 0.83f, 0.93f, 0.55f));
 
-            _statusLine1Text = UguiThemeFactory.CreateText(
+            _statusLine1Text = UguiThemeFactory.CreateTmpText(
                 "StatusLine1",
                 rt,
                 string.Empty,
-                15,
+                15f,
                 UguiThemeFactory.TextPrimary,
                 TextAnchor.MiddleLeft,
                 FontStyle.Bold);
-            _statusLine1Text.resizeTextForBestFit = true;
-            _statusLine1Text.resizeTextMinSize = 10;
-            _statusLine1Text.resizeTextMaxSize = 15;
-            _statusLine1Text.verticalOverflow = VerticalWrapMode.Truncate;
+            _statusLine1Text.enableAutoSizing = true;
+            _statusLine1Text.fontSizeMin = 10f;
+            _statusLine1Text.fontSizeMax = 15f;
+            _statusLine1Text.overflowMode = TextOverflowModes.Truncate;
             RectTransform line1Rt = _statusLine1Text.rectTransform;
             line1Rt.anchorMin = new Vector2(0f, 0.5f);
             line1Rt.anchorMax = new Vector2(1f, 1f);
             line1Rt.offsetMin = new Vector2(14f, 0f);
             line1Rt.offsetMax = new Vector2(-12f, -6f);
 
-            _statusLine2Text = UguiThemeFactory.CreateText(
+            _statusLine2Text = UguiThemeFactory.CreateTmpText(
                 "StatusLine2",
                 rt,
                 string.Empty,
-                13,
+                13f,
                 UguiThemeFactory.TextMuted,
                 TextAnchor.MiddleLeft,
                 FontStyle.Normal);
-            _statusLine2Text.resizeTextForBestFit = true;
-            _statusLine2Text.resizeTextMinSize = 10;
-            _statusLine2Text.resizeTextMaxSize = 13;
-            _statusLine2Text.verticalOverflow = VerticalWrapMode.Truncate;
+            _statusLine2Text.enableAutoSizing = true;
+            _statusLine2Text.fontSizeMin = 10f;
+            _statusLine2Text.fontSizeMax = 13f;
+            _statusLine2Text.overflowMode = TextOverflowModes.Truncate;
             RectTransform line2Rt = _statusLine2Text.rectTransform;
             line2Rt.anchorMin = new Vector2(0f, 0f);
             line2Rt.anchorMax = new Vector2(1f, 0.5f);
@@ -428,18 +429,18 @@ namespace CrownlessWarband.Presentation.UI
 
             _turnBannerOutline = UguiThemeFactory.CreateOutlineFrame("Outline", bannerRt, UguiThemeFactory.AccentGold);
 
-            _turnBannerText = UguiThemeFactory.CreateText(
+            _turnBannerText = UguiThemeFactory.CreateTmpText(
                 "TurnBannerText",
                 bannerRt,
                 string.Empty,
-                20,
+                20f,
                 UguiThemeFactory.TextPrimary,
                 TextAnchor.MiddleCenter,
                 FontStyle.Bold);
-            _turnBannerText.resizeTextForBestFit = true;
-            _turnBannerText.resizeTextMinSize = 13;
-            _turnBannerText.resizeTextMaxSize = 20;
-            _turnBannerText.verticalOverflow = VerticalWrapMode.Truncate;
+            _turnBannerText.enableAutoSizing = true;
+            _turnBannerText.fontSizeMin = 13f;
+            _turnBannerText.fontSizeMax = 20f;
+            _turnBannerText.overflowMode = TextOverflowModes.Truncate;
             StretchFull(_turnBannerText.rectTransform, 10f, 4f);
 
             // Boss HP Bar right below banner
@@ -475,18 +476,18 @@ namespace CrownlessWarband.Presentation.UI
             CreateThresholdMarker(trackRt, "Threshold35", 0.35f);
             CreateThresholdMarker(trackRt, "Threshold65", 0.65f);
 
-            _bossHpText = UguiThemeFactory.CreateText(
+            _bossHpText = UguiThemeFactory.CreateTmpText(
                 "BossHpLabel",
                 bossRt,
                 string.Empty,
-                13,
+                13f,
                 UguiThemeFactory.TextPrimary,
                 TextAnchor.MiddleCenter,
                 FontStyle.Bold);
-            _bossHpText.resizeTextForBestFit = true;
-            _bossHpText.resizeTextMinSize = 10;
-            _bossHpText.resizeTextMaxSize = 13;
-            _bossHpText.verticalOverflow = VerticalWrapMode.Truncate;
+            _bossHpText.enableAutoSizing = true;
+            _bossHpText.fontSizeMin = 10f;
+            _bossHpText.fontSizeMax = 13f;
+            _bossHpText.overflowMode = TextOverflowModes.Truncate;
             StretchFull(_bossHpText.rectTransform, 6f, 2f);
 
             _bossBarRoot.SetActive(false);
@@ -510,11 +511,11 @@ namespace CrownlessWarband.Presentation.UI
             layout.childForceExpandHeight = true;
 
             _speedButton = CreateControlButton("SpeedButton", rowRt, "1x", 62f, 14);
-            _speedButtonText = _speedButton.GetComponentInChildren<UnityEngine.UI.Text>();
+            _speedButtonText = _speedButton.GetComponentInChildren<TextMeshProUGUI>();
             _speedButton.onClick.AddListener(OnClickCycleSpeed);
 
             _pauseButton = CreateControlButton("PauseButton", rowRt, "PAUSE", 72f, 13);
-            _pauseButtonText = _pauseButton.GetComponentInChildren<UnityEngine.UI.Text>();
+            _pauseButtonText = _pauseButton.GetComponentInChildren<TextMeshProUGUI>();
             _pauseButton.onClick.AddListener(OnClickTogglePause);
 
             _stepButton = CreateControlButton("StepButton", rowRt, "STEP", 60f, 13);
@@ -538,12 +539,12 @@ namespace CrownlessWarband.Presentation.UI
                 int capturedIndex = i;
                 AllyCardSlot slot = new AllyCardSlot();
 
-                UnityEngine.UI.Button btn = UguiThemeFactory.CreateButton(
+                UnityEngine.UI.Button btn = UguiThemeFactory.CreateTmpButton(
                     $"AllyCard_{i}",
                     containerRt,
                     string.Empty,
                     UguiThemeFactory.PanelBg,
-                    12);
+                    12f);
                 RectTransform cardRt = btn.GetComponent<RectTransform>();
                 cardRt.anchorMin = new Vector2(0f, 0f);
                 cardRt.anchorMax = new Vector2(0f, 0f);
@@ -559,18 +560,18 @@ namespace CrownlessWarband.Presentation.UI
                     cardRt,
                     new Color(0.30f, 0.36f, 0.46f, 0.75f));
 
-                slot.NameText = UguiThemeFactory.CreateText(
+                slot.NameText = UguiThemeFactory.CreateTmpText(
                     "UnitName",
                     cardRt,
                     string.Empty,
-                    11,
+                    11f,
                     UguiThemeFactory.TextPrimary,
                     TextAnchor.MiddleCenter,
                     FontStyle.Bold);
-                slot.NameText.resizeTextForBestFit = true;
-                slot.NameText.resizeTextMinSize = 8;
-                slot.NameText.resizeTextMaxSize = 11;
-                slot.NameText.verticalOverflow = VerticalWrapMode.Truncate;
+                slot.NameText.enableAutoSizing = true;
+                slot.NameText.fontSizeMin = 8f;
+                slot.NameText.fontSizeMax = 11f;
+                slot.NameText.overflowMode = TextOverflowModes.Truncate;
                 RectTransform nameRt = slot.NameText.rectTransform;
                 nameRt.anchorMin = new Vector2(0f, 1f);
                 nameRt.anchorMax = new Vector2(1f, 1f);
@@ -587,11 +588,11 @@ namespace CrownlessWarband.Presentation.UI
                 portRt.sizeDelta = new Vector2(56f, 44f);
                 portRt.anchoredPosition = new Vector2(0f, -25f);
 
-                slot.RoleCodeText = UguiThemeFactory.CreateText(
+                slot.RoleCodeText = UguiThemeFactory.CreateTmpText(
                     "RoleCode",
                     portRt,
                     "GRD",
-                    16,
+                    16f,
                     UguiThemeFactory.TextPrimary,
                     TextAnchor.MiddleCenter,
                     FontStyle.Bold);
@@ -611,11 +612,11 @@ namespace CrownlessWarband.Presentation.UI
                 badgeRt.anchoredPosition = new Vector2(0f, 1f);
                 slot.StatusBadgeRoot = badgeBg.gameObject;
 
-                slot.StatusBadgeText = UguiThemeFactory.CreateText(
+                slot.StatusBadgeText = UguiThemeFactory.CreateTmpText(
                     "BadgeText",
                     badgeRt,
                     string.Empty,
-                    10,
+                    10f,
                     UguiThemeFactory.AccentGold,
                     TextAnchor.MiddleCenter,
                     FontStyle.Bold);
@@ -674,18 +675,18 @@ namespace CrownlessWarband.Presentation.UI
                 slot.EnergyFillRect.offsetMin = Vector2.zero;
                 slot.EnergyFillRect.offsetMax = Vector2.zero;
 
-                slot.HpValueText = UguiThemeFactory.CreateText(
+                slot.HpValueText = UguiThemeFactory.CreateTmpText(
                     "HpValueText",
                     cardRt,
                     string.Empty,
-                    11,
+                    11f,
                     UguiThemeFactory.TextPrimary,
                     TextAnchor.MiddleCenter,
                     FontStyle.Bold);
-                slot.HpValueText.resizeTextForBestFit = true;
-                slot.HpValueText.resizeTextMinSize = 8;
-                slot.HpValueText.resizeTextMaxSize = 11;
-                slot.HpValueText.verticalOverflow = VerticalWrapMode.Truncate;
+                slot.HpValueText.enableAutoSizing = true;
+                slot.HpValueText.fontSizeMin = 8f;
+                slot.HpValueText.fontSizeMax = 11f;
+                slot.HpValueText.overflowMode = TextOverflowModes.Truncate;
                 RectTransform hpTxtRt = slot.HpValueText.rectTransform;
                 hpTxtRt.anchorMin = new Vector2(0f, 0f);
                 hpTxtRt.anchorMax = new Vector2(1f, 0f);
@@ -708,18 +709,18 @@ namespace CrownlessWarband.Presentation.UI
             clusterRt.sizeDelta = new Vector2(470f, 134f);
             clusterRt.anchoredPosition = new Vector2(-18f, 16f);
 
-            _focusedAllyLabel = UguiThemeFactory.CreateText(
+            _focusedAllyLabel = UguiThemeFactory.CreateTmpText(
                 "FocusedAllyLabel",
                 clusterRt,
                 string.Empty,
-                14,
+                14f,
                 UguiThemeFactory.AllyCyan,
                 TextAnchor.MiddleLeft,
                 FontStyle.Bold);
-            _focusedAllyLabel.resizeTextForBestFit = true;
-            _focusedAllyLabel.resizeTextMinSize = 10;
-            _focusedAllyLabel.resizeTextMaxSize = 14;
-            _focusedAllyLabel.verticalOverflow = VerticalWrapMode.Truncate;
+            _focusedAllyLabel.enableAutoSizing = true;
+            _focusedAllyLabel.fontSizeMin = 10f;
+            _focusedAllyLabel.fontSizeMax = 14f;
+            _focusedAllyLabel.overflowMode = TextOverflowModes.Truncate;
             RectTransform focusRt = _focusedAllyLabel.rectTransform;
             focusRt.anchorMin = new Vector2(0f, 1f);
             focusRt.anchorMax = new Vector2(0f, 1f);
@@ -727,12 +728,12 @@ namespace CrownlessWarband.Presentation.UI
             focusRt.sizeDelta = new Vector2(190f, 24f);
             focusRt.anchoredPosition = new Vector2(6f, 0f);
 
-            _policyButton = UguiThemeFactory.CreateButton(
+            _policyButton = UguiThemeFactory.CreateTmpButton(
                 "PolicyButton",
                 clusterRt,
                 "POLICY",
                 UguiThemeFactory.PanelBgSoft,
-                11);
+                11f);
             UguiThemeFactory.CreateOutlineFrame("Outline", _policyButton.transform, UguiThemeFactory.AllyCyan);
             RectTransform policyRt = _policyButton.GetComponent<RectTransform>();
             policyRt.anchorMin = new Vector2(0f, 1f);
@@ -742,11 +743,11 @@ namespace CrownlessWarband.Presentation.UI
             policyRt.anchoredPosition = new Vector2(202f, -1f);
             _policyButton.onClick.AddListener(OnClickOpenPolicy);
 
-            _orbStatusHintText = UguiThemeFactory.CreateText(
+            _orbStatusHintText = UguiThemeFactory.CreateTmpText(
                 "OrbHintText",
                 clusterRt,
                 string.Empty,
-                12,
+                12f,
                 UguiThemeFactory.AccentGold,
                 TextAnchor.MiddleRight,
                 FontStyle.Normal);
@@ -773,12 +774,12 @@ namespace CrownlessWarband.Presentation.UI
                 orbSlot.Root = slotRt.gameObject;
 
                 // Mode Pill above Orb (68 x 22)
-                UnityEngine.UI.Button pillBtn = UguiThemeFactory.CreateButton(
+                UnityEngine.UI.Button pillBtn = UguiThemeFactory.CreateTmpButton(
                     "ModePill",
                     slotRt,
                     "AUTO",
                     UguiThemeFactory.PanelBgSoft,
-                    11);
+                    11f);
                 UguiThemeFactory.CreateOutlineFrame("Outline", pillBtn.transform, new Color(1f, 1f, 1f, 0.25f));
                 RectTransform pillRt = pillBtn.GetComponent<RectTransform>();
                 pillRt.anchorMin = new Vector2(0.5f, 1f);
@@ -789,7 +790,7 @@ namespace CrownlessWarband.Presentation.UI
 
                 orbSlot.ModePillRoot = pillBtn.gameObject;
                 orbSlot.ModePillButton = pillBtn;
-                orbSlot.ModePillText = pillBtn.GetComponentInChildren<UnityEngine.UI.Text>();
+                orbSlot.ModePillText = pillBtn.GetComponentInChildren<TextMeshProUGUI>();
                 pillBtn.onClick.AddListener(() => OnClickSkillModePill(capturedIndex));
 
                 // Circular Manual Ready Glow Ring behind Orb (76 x 76)
@@ -807,12 +808,12 @@ namespace CrownlessWarband.Presentation.UI
                 orbSlot.ManualReadyRing.SetActive(false);
 
                 // Circular Orb Button (68 x 68)
-                UnityEngine.UI.Button orbBtn = UguiThemeFactory.CreateButton(
+                UnityEngine.UI.Button orbBtn = UguiThemeFactory.CreateTmpButton(
                     "SkillOrb",
                     slotRt,
                     string.Empty,
                     OrbDamageColor,
-                    14,
+                    14f,
                     true);
                 RectTransform orbRt = orbBtn.GetComponent<RectTransform>();
                 orbRt.anchorMin = new Vector2(0.5f, 0f);
@@ -824,17 +825,17 @@ namespace CrownlessWarband.Presentation.UI
                 orbSlot.OrbButton = orbBtn;
 
                 // Two crisp texts inside Orb (skill code & cost/CD)
-                UnityEngine.UI.Text defaultLabel = orbBtn.GetComponentInChildren<UnityEngine.UI.Text>();
+                TextMeshProUGUI defaultLabel = orbBtn.GetComponentInChildren<TextMeshProUGUI>();
                 if (defaultLabel != null)
                 {
                     defaultLabel.gameObject.SetActive(false);
                 }
 
-                orbSlot.OrbCodeText = UguiThemeFactory.CreateText(
+                orbSlot.OrbCodeText = UguiThemeFactory.CreateTmpText(
                     "CodeText",
                     orbRt,
                     "ATK",
-                    14,
+                    14f,
                     UguiThemeFactory.TextPrimary,
                     TextAnchor.MiddleCenter,
                     FontStyle.Bold);
@@ -844,11 +845,11 @@ namespace CrownlessWarband.Presentation.UI
                 codeRt.offsetMin = Vector2.zero;
                 codeRt.offsetMax = Vector2.zero;
 
-                orbSlot.OrbCostText = UguiThemeFactory.CreateText(
+                orbSlot.OrbCostText = UguiThemeFactory.CreateTmpText(
                     "CostText",
                     orbRt,
                     "E:0",
-                    12,
+                    12f,
                     UguiThemeFactory.EnergyGold,
                     TextAnchor.MiddleCenter,
                     FontStyle.Bold);
@@ -864,14 +865,14 @@ namespace CrownlessWarband.Presentation.UI
             }
 
             // Main Action Button on the far right (132 x 76): Pause / Resume [SPACE]
-            _runTurnButton = UguiThemeFactory.CreateButton(
+            _runTurnButton = UguiThemeFactory.CreateTmpButton(
                 "RunTurnButton",
                 clusterRt,
                 "TẠM DỪNG\n[SPACE]",
                 ActionNormalColor,
-                14);
+                14f);
             _runTurnOutline = UguiThemeFactory.CreateOutlineFrame("Outline", _runTurnButton.transform, UguiThemeFactory.AllyCyan);
-            _runTurnButtonText = _runTurnButton.GetComponentInChildren<UnityEngine.UI.Text>();
+            _runTurnButtonText = _runTurnButton.GetComponentInChildren<TextMeshProUGUI>();
             RectTransform runRt = _runTurnButton.GetComponent<RectTransform>();
             runRt.anchorMin = new Vector2(1f, 0f);
             runRt.anchorMax = new Vector2(1f, 0f);
@@ -900,14 +901,18 @@ namespace CrownlessWarband.Presentation.UI
             vRt.anchoredPosition = new Vector2(0f, -108f);
             UguiThemeFactory.CreateOutlineFrame("Outline", vRt, UguiThemeFactory.AccentGold);
 
-            _victoryTitleText = UguiThemeFactory.CreateText(
+            _victoryTitleText = UguiThemeFactory.CreateTmpText(
                 "VictoryTitle",
                 vRt,
                 "CHIẾN THẮNG TRẬN ĐẤU!",
-                20,
-                UguiThemeFactory.AccentGold,
+                22f,
+                Color.white,
                 TextAnchor.MiddleCenter,
                 FontStyle.Bold);
+            UguiThemeFactory.ApplyTitleGradient(
+                _victoryTitleText,
+                new Color(1.00f, 0.94f, 0.65f, 1f),
+                new Color(0.92f, 0.54f, 0.04f, 1f));
             RectTransform vTitleRt = _victoryTitleText.rectTransform;
             vTitleRt.anchorMin = new Vector2(0f, 1f);
             vTitleRt.anchorMax = new Vector2(1f, 1f);
@@ -930,22 +935,22 @@ namespace CrownlessWarband.Presentation.UI
             vLayout.childForceExpandWidth = true;
             vLayout.childForceExpandHeight = true;
 
-            _victoryClaimButton = UguiThemeFactory.CreateButton(
+            _victoryClaimButton = UguiThemeFactory.CreateTmpButton(
                 "ClaimVictoryButton",
                 vBtnRow,
                 "CHIẾN THẮNG! NHẬN THƯỞNG ->",
                 new Color(0.14f, 0.52f, 0.34f, 1f),
-                14);
-            _victoryClaimButtonText = _victoryClaimButton.GetComponentInChildren<UnityEngine.UI.Text>();
+                14f);
+            _victoryClaimButtonText = _victoryClaimButton.GetComponentInChildren<TextMeshProUGUI>();
             UguiThemeFactory.CreateOutlineFrame("Outline", _victoryClaimButton.transform, UguiThemeFactory.HpGreen);
             _victoryClaimButton.onClick.AddListener(OnClickClaimVictory);
 
-            _endlessButton = UguiThemeFactory.CreateButton(
+            _endlessButton = UguiThemeFactory.CreateTmpButton(
                 "EnterEndlessButton",
                 vBtnRow,
                 "VÀO ENDLESS MODE (FLOOR 5+) ->",
                 new Color(0.66f, 0.42f, 0.08f, 1f),
-                13);
+                13f);
             UguiThemeFactory.CreateOutlineFrame("Outline", _endlessButton.transform, UguiThemeFactory.AccentGold);
             _endlessButton.onClick.AddListener(OnClickEnterEndless);
             _victoryModalRoot.SetActive(false);
@@ -967,11 +972,11 @@ namespace CrownlessWarband.Presentation.UI
             dRt.anchoredPosition = new Vector2(0f, -108f);
             UguiThemeFactory.CreateOutlineFrame("Outline", dRt, UguiThemeFactory.EnemyCrimson);
 
-            UnityEngine.UI.Text defeatTitle = UguiThemeFactory.CreateText(
+            TextMeshProUGUI defeatTitle = UguiThemeFactory.CreateTmpText(
                 "DefeatTitle",
                 dRt,
                 "THẤT BẠI — ĐỘI HÌNH GỤC NGÃ",
-                20,
+                20f,
                 UguiThemeFactory.EnemyCrimson,
                 TextAnchor.MiddleCenter,
                 FontStyle.Bold);
@@ -997,12 +1002,12 @@ namespace CrownlessWarband.Presentation.UI
             dLayout.childForceExpandWidth = true;
             dLayout.childForceExpandHeight = true;
 
-            _defeatReturnButton = UguiThemeFactory.CreateButton(
+            _defeatReturnButton = UguiThemeFactory.CreateTmpButton(
                 "DefeatReturnButton",
                 dBtnRow,
                 "KẾT THÚC TRÒ CHƠI",
                 new Color(0.56f, 0.18f, 0.20f, 1f),
-                14);
+                14f);
             UguiThemeFactory.CreateOutlineFrame("Outline", _defeatReturnButton.transform, UguiThemeFactory.EnemyCrimson);
             _defeatReturnButton.onClick.AddListener(OnClickReturnOnDefeat);
             _defeatModalRoot.SetActive(false);
@@ -1034,14 +1039,18 @@ namespace CrownlessWarband.Presentation.UI
             fRt.anchoredPosition = Vector2.zero;
             _finalGameOverCardOutline = UguiThemeFactory.CreateOutlineFrame("Outline", fRt, UguiThemeFactory.AccentGold);
 
-            _finalGameOverTitleText = UguiThemeFactory.CreateText(
+            _finalGameOverTitleText = UguiThemeFactory.CreateTmpText(
                 "FinalGameOverTitle",
                 fRt,
                 "CHIẾN THẮNG TRÒ CHƠI!",
-                24,
-                UguiThemeFactory.AccentGold,
+                26f,
+                Color.white,
                 TextAnchor.MiddleCenter,
                 FontStyle.Bold);
+            UguiThemeFactory.ApplyTitleGradient(
+                _finalGameOverTitleText,
+                new Color(1.00f, 0.94f, 0.65f, 1f),
+                new Color(0.92f, 0.54f, 0.04f, 1f));
             RectTransform fTitleRt = _finalGameOverTitleText.rectTransform;
             fTitleRt.anchorMin = new Vector2(0f, 1f);
             fTitleRt.anchorMax = new Vector2(1f, 1f);
@@ -1049,11 +1058,11 @@ namespace CrownlessWarband.Presentation.UI
             fTitleRt.offsetMin = new Vector2(20f, -64f);
             fTitleRt.offsetMax = new Vector2(-20f, -18f);
 
-            _finalGameOverDescText = UguiThemeFactory.CreateText(
+            _finalGameOverDescText = UguiThemeFactory.CreateTmpText(
                 "FinalGameOverDesc",
                 fRt,
                 string.Empty,
-                15,
+                15f,
                 UguiThemeFactory.TextPrimary,
                 TextAnchor.MiddleCenter,
                 FontStyle.Normal);
@@ -1078,21 +1087,21 @@ namespace CrownlessWarband.Presentation.UI
             fLayout.childForceExpandWidth = true;
             fLayout.childForceExpandHeight = true;
 
-            _finalPlayAgainButton = UguiThemeFactory.CreateButton(
+            _finalPlayAgainButton = UguiThemeFactory.CreateTmpButton(
                 "FinalPlayAgainButton",
                 fBtnRow,
                 "CHƠI LẠI",
                 new Color(0.14f, 0.52f, 0.34f, 1f),
-                15);
+                15f);
             UguiThemeFactory.CreateOutlineFrame("Outline", _finalPlayAgainButton.transform, UguiThemeFactory.HpGreen);
             _finalPlayAgainButton.onClick.AddListener(OnClickFinalPlayAgain);
 
-            _finalMainMenuButton = UguiThemeFactory.CreateButton(
+            _finalMainMenuButton = UguiThemeFactory.CreateTmpButton(
                 "FinalMainMenuButton",
                 fBtnRow,
                 "VỀ MAIN MENU",
                 new Color(0.16f, 0.24f, 0.36f, 1f),
-                15);
+                15f);
             UguiThemeFactory.CreateOutlineFrame("Outline", _finalMainMenuButton.transform, UguiThemeFactory.AllyCyan);
             _finalMainMenuButton.onClick.AddListener(OnClickFinalReturnMainMenu);
             _finalGameOverModalRoot.SetActive(false);
@@ -1970,7 +1979,7 @@ namespace CrownlessWarband.Presentation.UI
 
         private static UnityEngine.UI.Button CreateControlButton(string name, Transform parent, string label, float width, int fontSize)
         {
-            UnityEngine.UI.Button btn = UguiThemeFactory.CreateButton(name, parent, label, UguiThemeFactory.PanelBgSoft, fontSize);
+            UnityEngine.UI.Button btn = UguiThemeFactory.CreateTmpButton(name, parent, label, UguiThemeFactory.PanelBgSoft, fontSize);
             UguiThemeFactory.CreateOutlineFrame("Outline", btn.transform, new Color(0.45f, 0.55f, 0.72f, 0.6f));
             RectTransform rt = btn.GetComponent<RectTransform>();
             rt.sizeDelta = new Vector2(width, 40f);

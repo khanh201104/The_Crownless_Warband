@@ -259,8 +259,11 @@ namespace CrownlessWarband.Presentation.UI
         {
             if (_textStyle != null) return;
 
+            Font uiFont = UguiThemeFactory.GetDefaultFont();
+
             _textStyle = new GUIStyle(GUI.skin.label)
             {
+                font = uiFont,
                 fontSize = 14,
                 fontStyle = FontStyle.Bold,
                 alignment = TextAnchor.MiddleCenter,
@@ -276,6 +279,7 @@ namespace CrownlessWarband.Presentation.UI
 
             _bannerStyle = new GUIStyle(GUI.skin.label)
             {
+                font = uiFont,
                 fontSize = 14,
                 fontStyle = FontStyle.Bold,
                 alignment = TextAnchor.MiddleCenter,

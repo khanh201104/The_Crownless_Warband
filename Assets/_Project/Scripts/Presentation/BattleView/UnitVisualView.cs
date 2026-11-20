@@ -1,6 +1,7 @@
 using System;
 using System.Text;
 using CrownlessWarband.Core.Battle;
+using CrownlessWarband.Presentation.UI;
 using UnityEngine;
 
 namespace CrownlessWarband.Presentation.BattleView
@@ -833,8 +834,11 @@ namespace CrownlessWarband.Presentation.BattleView
         {
             if (_overheadStyle != null) return;
 
+            Font uiFont = UguiThemeFactory.GetDefaultFont();
+
             _overheadStyle = new GUIStyle(GUI.skin.label)
             {
+                font = uiFont,
                 fontSize = 11,
                 fontStyle = FontStyle.Normal,
                 alignment = TextAnchor.LowerCenter,
@@ -845,6 +849,7 @@ namespace CrownlessWarband.Presentation.BattleView
 
             _overheadShadowStyle = new GUIStyle(_overheadStyle)
             {
+                font = uiFont,
                 richText = true,
                 normal = { textColor = new Color(0f, 0f, 0f, 0.85f) }
             };

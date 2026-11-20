@@ -133,6 +133,12 @@ InitTestScene*.unity*
 /BattleReplays/
 *.save.json
 
+# 3b. Bỏ qua third-party art tools checkout (chứa .git riêng và output tạm ngoài Assets/)
+/Tools/pixelfx/
+/Tools/pixelfx/records/
+/Tools/pixelfx/sheets/
+/ArtWorkspace/
+
 # 4. File rác hệ điều hành (Windows / macOS)
 .DS_Store
 Thumbs.db

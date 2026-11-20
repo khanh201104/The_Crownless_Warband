@@ -4,6 +4,7 @@ using CrownlessWarband.Core.AI;
 using CrownlessWarband.Core.Battle;
 using CrownlessWarband.Core.Roguelite;
 using CrownlessWarband.Presentation.BattleView;
+using TMPro;
 using UnityEngine;
 
 namespace CrownlessWarband.Presentation.UI
@@ -18,9 +19,9 @@ namespace CrownlessWarband.Presentation.UI
             public GameObject Root;
             public UnityEngine.UI.Image BorderOutline;
             public UnityEngine.UI.Image BadgeBg;
-            public UnityEngine.UI.Text BadgeText;
-            public UnityEngine.UI.Text TitleText;
-            public UnityEngine.UI.Text DescText;
+            public TextMeshProUGUI BadgeText;
+            public TextMeshProUGUI TitleText;
+            public TextMeshProUGUI DescText;
             public UnityEngine.UI.Button SelectButton;
         }
 
@@ -29,7 +30,7 @@ namespace CrownlessWarband.Presentation.UI
             public GameObject Root;
             public UnityEngine.UI.Button Button;
             public UnityEngine.UI.Image Outline;
-            public UnityEngine.UI.Text Label;
+            public TextMeshProUGUI Label;
             public string BoundUnitId;
         }
 
@@ -39,24 +40,24 @@ namespace CrownlessWarband.Presentation.UI
         private Canvas _policyCanvas;
 
         // 1. Reward Canvas controls
-        private UnityEngine.UI.Text _rewardRelicsSubtitle;
+        private TextMeshProUGUI _rewardRelicsSubtitle;
         private GameObject _rewardCardsContainer;
         private readonly RewardCardSlot[] _rewardCards = new RewardCardSlot[MaxRewardCards];
         private GameObject _rewardEmptyFallback;
         private UnityEngine.UI.Button _rewardEmptyReturnButton;
 
         // 2. AI Policy Modal controls
-        private UnityEngine.UI.Text _policyScopeText;
+        private TextMeshProUGUI _policyScopeText;
         private readonly PolicyTabSlot[] _policyTabs = new PolicyTabSlot[MaxPolicyTabs];
-        private UnityEngine.UI.Text _policyUnitSummaryText;
-        private UnityEngine.UI.Text _behaviorValueText;
-        private UnityEngine.UI.Text _behaviorDescText;
+        private TextMeshProUGUI _policyUnitSummaryText;
+        private TextMeshProUGUI _behaviorValueText;
+        private TextMeshProUGUI _behaviorDescText;
         private UnityEngine.UI.Button _behaviorNextButton;
-        private UnityEngine.UI.Text _targetValueText;
-        private UnityEngine.UI.Text _targetDescText;
+        private TextMeshProUGUI _targetValueText;
+        private TextMeshProUGUI _targetDescText;
         private UnityEngine.UI.Button _targetNextButton;
-        private UnityEngine.UI.Text _conditionValueText;
-        private UnityEngine.UI.Text _conditionDescText;
+        private TextMeshProUGUI _conditionValueText;
+        private TextMeshProUGUI _conditionDescText;
         private UnityEngine.UI.Button _conditionNextButton;
         private UnityEngine.UI.Button _policySaveCloseButton;
 
@@ -237,28 +238,32 @@ namespace CrownlessWarband.Presentation.UI
             cardRt.anchoredPosition = Vector2.zero;
             UguiThemeFactory.CreateOutlineFrame("Outline", cardRt, UguiThemeFactory.AccentGold);
 
-            UnityEngine.UI.Text title = UguiThemeFactory.CreateText(
+            TextMeshProUGUI title = UguiThemeFactory.CreateTmpText(
                 "RewardTitle",
                 cardRt,
                 "PHẦN THƯỞNG CHIẾN THẮNG — CHỌN 1 TRONG 3",
-                26,
-                UguiThemeFactory.AccentGold,
+                27f,
+                Color.white,
                 TextAnchor.MiddleCenter,
                 FontStyle.Bold);
+            UguiThemeFactory.ApplyTitleGradient(
+                title,
+                new Color(1.00f, 0.94f, 0.65f, 1f),
+                new Color(0.92f, 0.54f, 0.04f, 1f));
             SetTopAnchored(title.rectTransform, 24f, 38f, 32f);
 
-            _rewardRelicsSubtitle = UguiThemeFactory.CreateText(
+            _rewardRelicsSubtitle = UguiThemeFactory.CreateTmpText(
                 "RelicsSubtitle",
                 cardRt,
                 string.Empty,
-                15,
+                15f,
                 UguiThemeFactory.TextMuted,
                 TextAnchor.MiddleCenter,
                 FontStyle.Normal);
-            _rewardRelicsSubtitle.resizeTextForBestFit = true;
-            _rewardRelicsSubtitle.resizeTextMinSize = 11;
-            _rewardRelicsSubtitle.resizeTextMaxSize = 15;
-            _rewardRelicsSubtitle.verticalOverflow = VerticalWrapMode.Truncate;
+            _rewardRelicsSubtitle.enableAutoSizing = true;
+            _rewardRelicsSubtitle.fontSizeMin = 11f;
+            _rewardRelicsSubtitle.fontSizeMax = 15f;
+            _rewardRelicsSubtitle.overflowMode = TextOverflowModes.Truncate;
             SetTopAnchored(_rewardRelicsSubtitle.rectTransform, 66f, 26f, 32f);
 
             RectTransform cardsRowRt = UguiThemeFactory.CreateRect("RewardCardsRow", cardRt);
@@ -302,28 +307,28 @@ namespace CrownlessWarband.Presentation.UI
                 badgeRt.sizeDelta = new Vector2(240f, 30f);
                 badgeRt.anchoredPosition = new Vector2(0f, -20f);
 
-                slot.BadgeText = UguiThemeFactory.CreateText(
+                slot.BadgeText = UguiThemeFactory.CreateTmpText(
                     "BadgeLabel",
                     badgeRt,
                     string.Empty,
-                    13,
+                    13f,
                     new Color(0.05f, 0.07f, 0.11f, 1f),
                     TextAnchor.MiddleCenter,
                     FontStyle.Bold);
                 StretchFull(slot.BadgeText.rectTransform, 6f, 2f);
 
-                slot.TitleText = UguiThemeFactory.CreateText(
+                slot.TitleText = UguiThemeFactory.CreateTmpText(
                     "CardTitle",
                     slotRt,
                     string.Empty,
-                    18,
+                    18f,
                     UguiThemeFactory.TextPrimary,
                     TextAnchor.MiddleCenter,
                     FontStyle.Bold);
-                slot.TitleText.resizeTextForBestFit = true;
-                slot.TitleText.resizeTextMinSize = 12;
-                slot.TitleText.resizeTextMaxSize = 18;
-                slot.TitleText.verticalOverflow = VerticalWrapMode.Truncate;
+                slot.TitleText.enableAutoSizing = true;
+                slot.TitleText.fontSizeMin = 12f;
+                slot.TitleText.fontSizeMax = 18f;
+                slot.TitleText.overflowMode = TextOverflowModes.Truncate;
                 RectTransform titleRt = slot.TitleText.rectTransform;
                 titleRt.anchorMin = new Vector2(0f, 1f);
                 titleRt.anchorMax = new Vector2(1f, 1f);
@@ -331,30 +336,30 @@ namespace CrownlessWarband.Presentation.UI
                 titleRt.offsetMin = new Vector2(18f, -124f);
                 titleRt.offsetMax = new Vector2(-18f, -64f);
 
-                slot.DescText = UguiThemeFactory.CreateText(
+                slot.DescText = UguiThemeFactory.CreateTmpText(
                     "CardDesc",
                     slotRt,
                     string.Empty,
-                    14,
+                    14f,
                     UguiThemeFactory.TextMuted,
                     TextAnchor.UpperCenter,
                     FontStyle.Normal);
-                slot.DescText.resizeTextForBestFit = true;
-                slot.DescText.resizeTextMinSize = 11;
-                slot.DescText.resizeTextMaxSize = 14;
-                slot.DescText.verticalOverflow = VerticalWrapMode.Truncate;
+                slot.DescText.enableAutoSizing = true;
+                slot.DescText.fontSizeMin = 11f;
+                slot.DescText.fontSizeMax = 14f;
+                slot.DescText.overflowMode = TextOverflowModes.Truncate;
                 RectTransform descRt = slot.DescText.rectTransform;
                 descRt.anchorMin = new Vector2(0f, 0f);
                 descRt.anchorMax = new Vector2(1f, 1f);
                 descRt.offsetMin = new Vector2(20f, 84f);
                 descRt.offsetMax = new Vector2(-20f, -134f);
 
-                slot.SelectButton = UguiThemeFactory.CreateButton(
+                slot.SelectButton = UguiThemeFactory.CreateTmpButton(
                     "SelectRewardButton",
                     slotRt,
                     "CHỌN NÂNG CẤP",
                     BtnGreenColor,
-                    15);
+                    15f);
                 UguiThemeFactory.CreateOutlineFrame("Outline", slot.SelectButton.transform, UguiThemeFactory.HpGreen);
                 RectTransform btnRt = slot.SelectButton.GetComponent<RectTransform>();
                 btnRt.anchorMin = new Vector2(0f, 0f);
@@ -375,22 +380,22 @@ namespace CrownlessWarband.Presentation.UI
             emptyRt.sizeDelta = new Vector2(420f, 160f);
             emptyRt.anchoredPosition = new Vector2(0f, -20f);
 
-            UnityEngine.UI.Text emptyMsg = UguiThemeFactory.CreateText(
+            TextMeshProUGUI emptyMsg = UguiThemeFactory.CreateTmpText(
                 "EmptyMsg",
                 emptyRt,
                 "Không có phần thưởng chờ lựa chọn.",
-                18,
+                18f,
                 UguiThemeFactory.TextMuted,
                 TextAnchor.MiddleCenter,
                 FontStyle.Normal);
             SetTopAnchored(emptyMsg.rectTransform, 10f, 38f, 10f);
 
-            _rewardEmptyReturnButton = UguiThemeFactory.CreateButton(
+            _rewardEmptyReturnButton = UguiThemeFactory.CreateTmpButton(
                 "ReturnToMapButton",
                 emptyRt,
                 "Quay về Bản đồ",
                 BtnActiveColor,
-                16);
+                16f);
             UguiThemeFactory.CreateOutlineFrame("Outline", _rewardEmptyReturnButton.transform, UguiThemeFactory.AllyCyan);
             RectTransform retRt = _rewardEmptyReturnButton.GetComponent<RectTransform>();
             retRt.anchorMin = new Vector2(0.5f, 0f);
@@ -489,21 +494,25 @@ namespace CrownlessWarband.Presentation.UI
             modalRt.anchoredPosition = Vector2.zero;
             UguiThemeFactory.CreateOutlineFrame("Outline", modalRt, UguiThemeFactory.AllyCyan);
 
-            UnityEngine.UI.Text title = UguiThemeFactory.CreateText(
+            TextMeshProUGUI title = UguiThemeFactory.CreateTmpText(
                 "PolicyTitle",
                 modalRt,
                 "CẤU HÌNH CHIẾN THUẬT AI (UNIT AI POLICY)",
-                22,
-                UguiThemeFactory.AccentGold,
+                24f,
+                Color.white,
                 TextAnchor.MiddleCenter,
                 FontStyle.Bold);
+            UguiThemeFactory.ApplyTitleGradient(
+                title,
+                new Color(1.00f, 0.94f, 0.65f, 1f),
+                new Color(0.92f, 0.54f, 0.04f, 1f));
             SetTopAnchored(title.rectTransform, 18f, 32f, 24f);
 
-            _policyScopeText = UguiThemeFactory.CreateText(
+            _policyScopeText = UguiThemeFactory.CreateTmpText(
                 "PolicyScopeNote",
                 modalRt,
                 string.Empty,
-                13,
+                13f,
                 UguiThemeFactory.TextMuted,
                 TextAnchor.MiddleCenter,
                 FontStyle.Italic);
@@ -524,26 +533,26 @@ namespace CrownlessWarband.Presentation.UI
             {
                 int capturedIndex = i;
                 PolicyTabSlot tab = new PolicyTabSlot();
-                UnityEngine.UI.Button tabBtn = UguiThemeFactory.CreateButton(
+                UnityEngine.UI.Button tabBtn = UguiThemeFactory.CreateTmpButton(
                     $"PolicyTab_{i}",
                     tabsRowRt,
                     string.Empty,
                     UguiThemeFactory.PanelBgSoft,
-                    13);
+                    13f);
                 tab.Root = tabBtn.gameObject;
                 tab.Button = tabBtn;
                 tab.Outline = UguiThemeFactory.CreateOutlineFrame("Outline", tabBtn.transform, new Color(0.4f, 0.48f, 0.60f, 0.6f));
-                tab.Label = tabBtn.GetComponentInChildren<UnityEngine.UI.Text>();
+                tab.Label = tabBtn.GetComponentInChildren<TextMeshProUGUI>();
                 tabBtn.onClick.AddListener(() => OnClickSelectPolicyTab(capturedIndex));
                 tab.Root.SetActive(false);
                 _policyTabs[i] = tab;
             }
 
-            _policyUnitSummaryText = UguiThemeFactory.CreateText(
+            _policyUnitSummaryText = UguiThemeFactory.CreateTmpText(
                 "UnitSummary",
                 modalRt,
                 string.Empty,
-                14,
+                14f,
                 UguiThemeFactory.AllyCyan,
                 TextAnchor.MiddleCenter,
                 FontStyle.Bold);
@@ -577,12 +586,12 @@ namespace CrownlessWarband.Presentation.UI
                 out _conditionNextButton);
             _conditionNextButton.onClick.AddListener(OnClickCycleSkillCondition);
 
-            _policySaveCloseButton = UguiThemeFactory.CreateButton(
+            _policySaveCloseButton = UguiThemeFactory.CreateTmpButton(
                 "SaveClosePolicyButton",
                 modalRt,
                 "Lưu & Đóng",
                 BtnActiveColor,
-                16);
+                16f);
             UguiThemeFactory.CreateOutlineFrame("Outline", _policySaveCloseButton.transform, UguiThemeFactory.AllyCyan);
             RectTransform closeRt = _policySaveCloseButton.GetComponent<RectTransform>();
             closeRt.anchorMin = new Vector2(0.5f, 0f);
@@ -597,8 +606,8 @@ namespace CrownlessWarband.Presentation.UI
             RectTransform parent,
             float topOffset,
             string sectionTitle,
-            out UnityEngine.UI.Text valueText,
-            out UnityEngine.UI.Text descText,
+            out TextMeshProUGUI valueText,
+            out TextMeshProUGUI descText,
             out UnityEngine.UI.Button nextButton)
         {
             UnityEngine.UI.Image rowBg = UguiThemeFactory.CreatePanel("PolicyRow", parent, UguiThemeFactory.PanelBgSoft, true);
@@ -606,11 +615,11 @@ namespace CrownlessWarband.Presentation.UI
             SetTopAnchored(rowRt, topOffset, 90f, 24f);
             UguiThemeFactory.CreateOutlineFrame("Outline", rowRt, new Color(0.32f, 0.40f, 0.54f, 0.5f));
 
-            UnityEngine.UI.Text label = UguiThemeFactory.CreateText(
+            TextMeshProUGUI label = UguiThemeFactory.CreateTmpText(
                 "GroupTitle",
                 rowRt,
                 sectionTitle,
-                13,
+                13f,
                 UguiThemeFactory.TextMuted,
                 TextAnchor.MiddleLeft,
                 FontStyle.Bold);
@@ -621,48 +630,48 @@ namespace CrownlessWarband.Presentation.UI
             lblRt.offsetMin = new Vector2(14f, -26f);
             lblRt.offsetMax = new Vector2(0f, -6f);
 
-            valueText = UguiThemeFactory.CreateText(
+            valueText = UguiThemeFactory.CreateTmpText(
                 "CurrentValue",
                 rowRt,
                 string.Empty,
-                16,
+                16f,
                 UguiThemeFactory.AccentGold,
                 TextAnchor.MiddleLeft,
                 FontStyle.Bold);
-            valueText.resizeTextForBestFit = true;
-            valueText.resizeTextMinSize = 12;
-            valueText.resizeTextMaxSize = 16;
-            valueText.verticalOverflow = VerticalWrapMode.Truncate;
+            valueText.enableAutoSizing = true;
+            valueText.fontSizeMin = 12f;
+            valueText.fontSizeMax = 16f;
+            valueText.overflowMode = TextOverflowModes.Truncate;
             RectTransform valRt = valueText.rectTransform;
             valRt.anchorMin = new Vector2(0f, 0.44f);
             valRt.anchorMax = new Vector2(0.70f, 0.72f);
             valRt.offsetMin = new Vector2(14f, 0f);
             valRt.offsetMax = Vector2.zero;
 
-            descText = UguiThemeFactory.CreateText(
+            descText = UguiThemeFactory.CreateTmpText(
                 "PresetDesc",
                 rowRt,
                 string.Empty,
-                12,
+                12f,
                 UguiThemeFactory.TextPrimary,
                 TextAnchor.MiddleLeft,
                 FontStyle.Normal);
-            descText.resizeTextForBestFit = true;
-            descText.resizeTextMinSize = 10;
-            descText.resizeTextMaxSize = 12;
-            descText.verticalOverflow = VerticalWrapMode.Truncate;
+            descText.enableAutoSizing = true;
+            descText.fontSizeMin = 10f;
+            descText.fontSizeMax = 12f;
+            descText.overflowMode = TextOverflowModes.Truncate;
             RectTransform descRt = descText.rectTransform;
             descRt.anchorMin = new Vector2(0f, 0.04f);
             descRt.anchorMax = new Vector2(0.70f, 0.43f);
             descRt.offsetMin = new Vector2(14f, 4f);
             descRt.offsetMax = Vector2.zero;
 
-            nextButton = UguiThemeFactory.CreateButton(
+            nextButton = UguiThemeFactory.CreateTmpButton(
                 "NextOptionButton",
                 rowRt,
                 "Đổi / Tiếp theo ->",
                 new Color(0.16f, 0.24f, 0.36f, 1f),
-                14);
+                14f);
             UguiThemeFactory.CreateOutlineFrame("Outline", nextButton.transform, UguiThemeFactory.AllyCyan);
             RectTransform btnRt = nextButton.GetComponent<RectTransform>();
             btnRt.anchorMin = new Vector2(1f, 0.5f);
